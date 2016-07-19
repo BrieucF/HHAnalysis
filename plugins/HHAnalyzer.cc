@@ -30,7 +30,7 @@ void HHAnalyzer::registerCategories(CategoryManager& manager, const edm::Paramet
 
 void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const ProducersManager& producers, const AnalyzersManager&, const CategoryManager&) {
 
-    float mh = event.isRealData() ? 125.02 : 125.0;
+    //float mh = event.isRealData() ? 125.02 : 125.0;
     LorentzVector null_p4(0., 0., 0., 0.);
     const EventProducer& fwevent = producers.get<EventProducer>("event");
     float event_weight = fwevent.weight;
@@ -71,16 +71,11 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             float dr = ROOT::Math::VectorUtil::DeltaR(lepton.p4, hlt.object_p4[hlt_object]);
             float dpt_over_pt = fabs(lepton.p4.Pt() - hlt.object_p4[hlt_object].Pt()) / lepton.p4.Pt();
 
-            if (dr > m_hltDRCut)
-                continue;
-
-            if (dpt_over_pt > m_hltDPtCut)
-                continue;
-
             if (dr < min_dr) {
                 min_dr = dr;
                 final_dpt_over_pt = dpt_over_pt;
-                index = hlt_object;
+                if (dr < m_hltDRCut && dpt_over_pt < m_hltDPtCut)
+                    index = hlt_object;
             }
         }
         lepton.hlt_idx = index;
@@ -100,118 +95,86 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     leptons.clear();
     ll.clear();
 
-    // Fill lepton structures
+    // Electrons
     for (unsigned int ielectron = 0; ielectron < allelectrons.p4.size(); ielectron++)
     {
-        if (allelectrons.p4[ielectron].Pt() > m_subleadingElectronPtCut
-            && fabs(allelectrons.p4[ielectron].Eta()) < m_electronEtaCut) 
-        {
-            electrons.push_back(ielectron);
-            HH::Lepton ele;
-            ele.p4 = allelectrons.p4[ielectron];
-            ele.charge = allelectrons.charge[ielectron];
-            ele.idx = ielectron;
-            ele.isMu = false;
-            ele.isEl = true;
-            ele.id_L = allelectrons.ids[ielectron][m_electron_loose_wp_name];
-            ele.id_M = allelectrons.ids[ielectron][m_electron_medium_wp_name];
-            ele.id_T = allelectrons.ids[ielectron][m_electron_tight_wp_name];
-            ele.id_HWW = ele.id_T;
-            ele.iso_L = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Loose) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Loose);
-            ele.iso_T = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight);
-            ele.iso_HWW = ele.iso_T; // FIXME
-            ele.gen_matched = allelectrons.matched[ielectron];
-            ele.gen_p4 = ele.gen_matched ? allelectrons.gen_p4[ielectron] : null_p4;
-            ele.gen_DR = ele.gen_matched ? ROOT::Math::VectorUtil::DeltaR(ele.p4, ele.gen_p4): -1.;
-            ele.gen_DPtOverPt = ele.gen_matched ? (ele.p4.Pt() - ele.gen_p4.Pt()) / ele.p4.Pt() : -10.;
-            leptons.push_back(ele);
-        }
+        if ( !(allelectrons.p4[ielectron].Pt() > m_subleadingElectronPtCut
+            && fabs(allelectrons.p4[ielectron].Eta()) < m_electronEtaCut
+            && allelectrons.ids[ielectron][m_electron_tight_wp_name] 
+            && (allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight))))
+           continue; 
+        electrons.push_back(ielectron);
+        HH::Lepton ele;
+        ele.p4 = allelectrons.p4[ielectron];
+        ele.charge = allelectrons.charge[ielectron];
+        ele.idx = ielectron;
+        ele.isMu = false;
+        ele.isEl = true;
+        ele.id_L = allelectrons.ids[ielectron][m_electron_loose_wp_name];
+        ele.id_M = allelectrons.ids[ielectron][m_electron_medium_wp_name];
+        ele.id_T = allelectrons.ids[ielectron][m_electron_tight_wp_name];
+        ele.id_HWW = ele.id_T;
+        ele.iso_L = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Loose) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Loose);
+        ele.iso_T = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight);
+        ele.iso_HWW = ele.iso_T; // FIXME
+        ele.gen_matched = allelectrons.matched[ielectron];
+        ele.gen_p4 = ele.gen_matched ? allelectrons.gen_p4[ielectron] : null_p4;
+        ele.gen_DR = ele.gen_matched ? ROOT::Math::VectorUtil::DeltaR(ele.p4, ele.gen_p4): -1.;
+        ele.gen_DPtOverPt = ele.gen_matched ? (ele.p4.Pt() - ele.gen_p4.Pt()) / ele.p4.Pt() : -10.;
+        if (!hlt.paths.empty())
+           matchOfflineLepton(ele); 
+        leptons.push_back(ele);
     }//end of loop on electrons
 
+    // Muons
     for (unsigned int imuon = 0; imuon < allmuons.p4.size(); imuon++)
     {
-        if (allmuons.p4[imuon].Pt() > m_subleadingMuonPtCut
-            && fabs(allmuons.p4[imuon].Eta()) < m_muonEtaCut)
-        {
-            muons.push_back(imuon);
-            HH::Lepton mu;
-            mu.p4 = allmuons.p4[imuon];
-            mu.charge = allmuons.charge[imuon];
-            mu.idx = imuon;
-            mu.isMu = true;
-            mu.isEl = false;
-            mu.id_L = allmuons.isLoose[imuon];
-            mu.id_M = allmuons.isMedium[imuon];
-            mu.id_T = allmuons.isTight[imuon];
-            mu.id_HWW = mu.id_M && (mu.p4.Pt() < 20. ? fabs(allmuons.dxy[imuon]) < 0.01 : fabs(allmuons.dxy[imuon]) < 0.02) && (fabs(allmuons.dz[imuon]) < 0.1);
-            mu.iso_L = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonLooseIsoCut;
-            mu.iso_T = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonTightIsoCut;
-            mu.iso_HWW = mu.iso_T; // For the isolation use relative PF isolation (cone size = 0.4) with deltaBeta PU corrections (a.l.a. Run I) and WP < 0.15
-            mu.gen_matched = allmuons.matched[imuon];
-            mu.gen_p4 = mu.gen_matched ? allmuons.gen_p4[imuon] : null_p4;
-            mu.gen_DR = mu.gen_matched ? ROOT::Math::VectorUtil::DeltaR(mu.p4, mu.gen_p4) : -1.;
-            mu.gen_DPtOverPt = mu.gen_matched ? (mu.p4.Pt() - mu.gen_p4.Pt()) / mu.p4.Pt() : -10.;
-            leptons.push_back(mu);
-        }
+        if (!(allmuons.p4[imuon].Pt() > m_subleadingMuonPtCut
+            && fabs(allmuons.p4[imuon].Eta()) < m_muonEtaCut 
+            && allmuons.isMedium[imuon]
+            &&  (allmuons.p4[imuon].Pt() < 20. ? fabs(allmuons.dxy[imuon]) < 0.01 : fabs(allmuons.dxy[imuon]) < 0.02) 
+            && (fabs(allmuons.dz[imuon]) < 0.1)))
+            continue;
+        muons.push_back(imuon);
+        HH::Lepton mu;
+        mu.p4 = allmuons.p4[imuon];
+        mu.charge = allmuons.charge[imuon];
+        mu.idx = imuon;
+        mu.isMu = true;
+        mu.isEl = false;
+        mu.id_L = allmuons.isLoose[imuon];
+        mu.id_M = allmuons.isMedium[imuon];
+        mu.id_T = allmuons.isTight[imuon];
+        mu.id_HWW = mu.id_M && (mu.p4.Pt() < 20. ? fabs(allmuons.dxy[imuon]) < 0.01 : fabs(allmuons.dxy[imuon]) < 0.02) && (fabs(allmuons.dz[imuon]) < 0.1);
+        mu.iso_L = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonLooseIsoCut;
+        mu.iso_T = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonTightIsoCut;
+        mu.iso_HWW = mu.iso_T; // For the isolation use relative PF isolation (cone size = 0.4) with deltaBeta PU corrections (a.l.a. Run I) and WP < 0.15
+        mu.gen_matched = allmuons.matched[imuon];
+        mu.gen_p4 = mu.gen_matched ? allmuons.gen_p4[imuon] : null_p4;
+        mu.gen_DR = mu.gen_matched ? ROOT::Math::VectorUtil::DeltaR(mu.p4, mu.gen_p4) : -1.;
+        mu.gen_DPtOverPt = mu.gen_matched ? (mu.p4.Pt() - mu.gen_p4.Pt()) / mu.p4.Pt() : -10.;
+        if (!hlt.paths.empty())
+           matchOfflineLepton(mu);
+        leptons.push_back(mu);
     }//end of loop on muons
+    if (leptons.size() < 2)
+        return;
 
     // sort leptons by pt (ignoring flavour, id and iso)
     std::sort(leptons.begin(), leptons.end(), [](const HH::Lepton& lep1, const HH::Lepton& lep2) { return lep1.p4.Pt() > lep2.p4.Pt(); });     
 
-    // Fill lepton maps
-    for (unsigned int i_id_iso = 0; i_id_iso < map_l.size(); i_id_iso++)
-        map_l[i_id_iso].clear();
-
-    for (unsigned int ilepton = 0; ilepton < leptons.size(); ilepton++)
-    {
-        if (leptons[ilepton].id_L)
-        {
-            map_l[ lepIDIso(lepID::L, lepIso::no) ].push_back(ilepton);
-            if (leptons[ilepton].iso_L)
-                map_l[ lepIDIso(lepID::L, lepIso::L) ].push_back(ilepton);
-            if (leptons[ilepton].iso_T)
-                map_l[ lepIDIso(lepID::L, lepIso::T) ].push_back(ilepton);
-            if (leptons[ilepton].iso_HWW)
-                map_l[ lepIDIso(lepID::L, lepIso::HWW) ].push_back(ilepton);
-        }
-        if (leptons[ilepton].id_M)
-        {
-            map_l[ lepIDIso(lepID::M, lepIso::no) ].push_back(ilepton);
-            if (leptons[ilepton].iso_L)
-                map_l[ lepIDIso(lepID::M, lepIso::L) ].push_back(ilepton);
-            if (leptons[ilepton].iso_T)
-                map_l[ lepIDIso(lepID::M, lepIso::T) ].push_back(ilepton);
-            if (leptons[ilepton].iso_HWW)
-                map_l[ lepIDIso(lepID::M, lepIso::HWW) ].push_back(ilepton);
-        }
-        if (leptons[ilepton].id_T)
-        {
-            map_l[ lepIDIso(lepID::T, lepIso::no) ].push_back(ilepton);
-            if (leptons[ilepton].iso_L)
-                map_l[ lepIDIso(lepID::T, lepIso::L) ].push_back(ilepton);
-            if (leptons[ilepton].iso_T)
-                map_l[ lepIDIso(lepID::T, lepIso::T) ].push_back(ilepton);
-            if (leptons[ilepton].iso_HWW)
-                map_l[ lepIDIso(lepID::T, lepIso::HWW) ].push_back(ilepton);
-        }
-        if (leptons[ilepton].id_HWW)
-        {
-            map_l[ lepIDIso(lepID::HWW, lepIso::no) ].push_back(ilepton);
-            if (leptons[ilepton].iso_L)
-                map_l[ lepIDIso(lepID::HWW, lepIso::L) ].push_back(ilepton);
-            if (leptons[ilepton].iso_T)
-                map_l[ lepIDIso(lepID::HWW, lepIso::T) ].push_back(ilepton);
-            if (leptons[ilepton].iso_HWW)
-                map_l[ lepIDIso(lepID::HWW, lepIso::HWW) ].push_back(ilepton);
-        }
-    }
-           
+    // Dileptons
     for (unsigned int ilep1 = 0; ilep1 < leptons.size(); ilep1++)
     {
-        if ((leptons[ilep1].isMu && leptons[ilep1].p4.Pt() < m_leadingMuonPtCut) || (leptons[ilep1].isEl && leptons[ilep1].p4.Pt() < m_leadingElectronPtCut)) continue;
+        if ((leptons[ilep1].isMu && leptons[ilep1].p4.Pt() < m_leadingMuonPtCut) || (leptons[ilep1].isEl && leptons[ilep1].p4.Pt() < m_leadingElectronPtCut)) 
+            continue;
+        if (event.isRealData() && !(leptons[ilep1].hlt_DR_matchedObject < m_hltDRCut))
+            continue;
 
         for (unsigned int ilep2 = ilep1+1; ilep2 < leptons.size(); ilep2++)
         {
+            if (event.isRealData() && !(leptons[ilep2].hlt_DR_matchedObject < m_hltDRCut))
+                continue;
             HH::Dilepton dilep;
             dilep.p4 = leptons[ilep1].p4 + leptons[ilep2].p4;
             dilep.idxs = std::make_pair(leptons[ilep1].idx, leptons[ilep2].idx);
@@ -250,7 +213,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             dilep.iso_HWWHWW = leptons[ilep1].iso_HWW && leptons[ilep2].iso_HWW;
             dilep.DR_l_l = ROOT::Math::VectorUtil::DeltaR(leptons[ilep1].p4, leptons[ilep2].p4);
             dilep.DPhi_l_l = fabs(ROOT::Math::VectorUtil::DeltaPhi(leptons[ilep1].p4, leptons[ilep2].p4));
-            if (!hlt.paths.empty()) dilep.hlt_idxs = std::make_pair(matchOfflineLepton(leptons[ilep1]),matchOfflineLepton(leptons[ilep2]));
+            dilep.ht_l_l = leptons[ilep1].p4.Pt() + leptons[ilep2].p4.Pt();
+            dilep.hlt_idxs = std::make_pair(leptons[ilep1].hlt_idx, leptons[ilep2].hlt_idx);
             dilep.gen_matched = leptons[ilep1].gen_matched && leptons[ilep2].gen_matched;
             dilep.gen_p4 = dilep.gen_matched ? leptons[ilep1].gen_p4 + leptons[ilep2].gen_p4 : null_p4;
             dilep.gen_DR = dilep.gen_matched ? ROOT::Math::VectorUtil::DeltaR(dilep.p4, dilep.gen_p4) : -1.;
@@ -265,13 +229,10 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             else {
                fillTriggerEfficiencies(leptons[ilep1], leptons[ilep2], dilep);
             }
-            // Some selection
-            if (!dilep.isOS)
-                continue;
-            if (event.isRealData() && !(leptons[ilep1].hlt_DR_matchedObject < m_hltDRCut && leptons[ilep1].hlt_DR_matchedObject < m_hltDRCut))
-                continue;
-            if (!(dilep.id_HWWHWW && dilep.iso_HWWHWW))
-                continue;
+
+            //if (!dilep.isOS)
+            //    continue;
+
             // Counters
             tmp_count_has2leptons = event_weight;
             if (dilep.isElEl)
@@ -286,56 +247,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             ll.push_back(dilep); 
         }
     }
-
-    // Fill dilepton maps
-    for (unsigned int i = 0; i < map_ll.size(); i++)
-        map_ll[i].clear();
-
-    // map is stored as lep1_ID, lep1_Iso, lep2_ID, lep2_Iso
-    // FIXME only dealing with symmetric cases for now
-    for (unsigned int ill = 0; ill < ll.size(); ill++)
-    {
-        if (ll[ill].id_LL)
-        {
-            map_ll[ leplepIDIso(lepID::L, lepIso::no, lepID::L, lepIso::no) ].push_back(ill);
-            if (ll[ill].iso_LL)
-                map_ll[ leplepIDIso(lepID::L, lepIso::L, lepID::L, lepIso::L) ].push_back(ill);
-            if (ll[ill].iso_TT)
-                map_ll[ leplepIDIso(lepID::L, lepIso::T, lepID::L, lepIso::T) ].push_back(ill);
-            if (ll[ill].iso_HWWHWW)
-                map_ll[ leplepIDIso(lepID::L, lepIso::HWW, lepID::L, lepIso::HWW) ].push_back(ill);
-        }
-        if (ll[ill].id_MM)
-        {
-            map_ll[ leplepIDIso(lepID::M, lepIso::no, lepID::M, lepIso::no) ].push_back(ill);
-            if (ll[ill].iso_LL)
-                map_ll[ leplepIDIso(lepID::M, lepIso::L, lepID::M, lepIso::L) ].push_back(ill);
-            if (ll[ill].iso_TT)
-                map_ll[ leplepIDIso(lepID::M, lepIso::T, lepID::M, lepIso::T) ].push_back(ill);
-            if (ll[ill].iso_HWWHWW)
-                map_ll[ leplepIDIso(lepID::M, lepIso::HWW, lepID::M, lepIso::HWW) ].push_back(ill);
-        }
-        if (ll[ill].id_TT)
-        {
-            map_ll[ leplepIDIso(lepID::T, lepIso::no, lepID::T, lepIso::no) ].push_back(ill);
-            if (ll[ill].iso_LL)
-                map_ll[ leplepIDIso(lepID::T, lepIso::L, lepID::T, lepIso::L) ].push_back(ill);
-            if (ll[ill].iso_TT)
-                map_ll[ leplepIDIso(lepID::T, lepIso::T, lepID::T, lepIso::T) ].push_back(ill);
-            if (ll[ill].iso_HWWHWW)
-                map_ll[ leplepIDIso(lepID::T, lepIso::HWW, lepID::T, lepIso::HWW) ].push_back(ill);
-        }
-        if (ll[ill].id_HWWHWW)
-        {
-            map_ll[ leplepIDIso(lepID::HWW, lepIso::no, lepID::HWW, lepIso::no) ].push_back(ill);
-            if (ll[ill].iso_LL)
-                map_ll[ leplepIDIso(lepID::HWW, lepIso::L, lepID::HWW, lepIso::L) ].push_back(ill);
-            if (ll[ill].iso_TT)
-                map_ll[ leplepIDIso(lepID::HWW, lepIso::T, lepID::HWW, lepIso::T) ].push_back(ill);
-            if (ll[ill].iso_HWWHWW)
-                map_ll[ leplepIDIso(lepID::HWW, lepIso::HWW, lepID::HWW, lepIso::HWW) ].push_back(ill);
-        }
-    }
+    if (ll.size()<1)
+        return;
 
     // ***** 
     // Adding MET(s)
@@ -439,116 +352,68 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         }
     }
 
-    // Fill dilepton+met maps
-    // FIXME: for now only store pf_met
-    // so ll and llmet structures are in sync
-    for (unsigned int i = 0; i < map_llmet.size(); i++)
-    {
-        map_llmet[i].clear();
-        for (unsigned int j = 0; j < map_ll[i].size(); j++)
-        {
-            map_llmet[i].push_back(map_ll[i][j]);
-        }
-    }
-
     // ***** 
     // Jets and dijets 
     // ***** 
     const JetsProducer& alljets = producers.get<JetsProducer>(m_jets_producer);
     jets.clear();
-    for (unsigned int imap_j = 0; imap_j < map_j.size(); imap_j++)
-        map_j[imap_j].clear();
 
-    // (The following include filling up the jets map
     int count = 0;
+    nJetsL_DRjl = 0;
     for (unsigned int ijet = 0; ijet < alljets.p4.size(); ijet++)
     {
         float correctionFactor = m_applyBJetRegression ? alljets.regPt[ijet] / alljets.p4[ijet].Pt() : 1.;
-/*
-        std::cout << "m_jets_producer= " << m_jets_producer
-            << "\tm_applyBJetRegression= " << m_applyBJetRegression
-            << "\talljets.p4[" << ijet << "].Pt()= " << alljets.p4[ijet].Pt()
-            << "\talljets.regPt[" << ijet << "]= " << alljets.regPt[ijet]
-            << "\tcorrectionFactor= " << correctionFactor
-            << std::endl;
-*/
-        if ((alljets.p4[ijet].Pt() * correctionFactor > m_jetPtCut) 
-            && (fabs(alljets.p4[ijet].Eta()) < m_jetEtaCut))
-        {
-            HH::Jet myjet;
-            myjet.p4 = alljets.p4[ijet] * correctionFactor;
-            myjet.idx = ijet;
-            myjet.id_L = alljets.passLooseID[ijet];
-            myjet.id_T = alljets.passTightID[ijet];
-            myjet.id_TLV = alljets.passTightLeptonVetoID[ijet];
-            myjet.CSV = alljets.getBTagDiscriminant(ijet, "pfCombinedInclusiveSecondaryVertexV2BJetTags");
-            myjet.JP = alljets.getBTagDiscriminant(ijet, "pfJetProbabilityBJetTags");
-            float mybtag = alljets.getBTagDiscriminant(ijet, m_jet_bDiscrName);
-            myjet.btag_L = mybtag > m_jet_bDiscrCut_loose;
-            myjet.btag_M = mybtag > m_jet_bDiscrCut_medium;
-            myjet.btag_T = mybtag > m_jet_bDiscrCut_tight;
-            myjet.gen_matched_bParton = (alljets.partonFlavor[ijet]) == 5;
-            myjet.gen_matched_bHadron = (alljets.hadronFlavor[ijet]) == 5;
-            myjet.gen_matched = alljets.matched[ijet];
-            myjet.gen_p4 = myjet.gen_matched ? alljets.gen_p4[ijet] : null_p4;
-            myjet.gen_DR = myjet.gen_matched ? ROOT::Math::VectorUtil::DeltaR(myjet.p4, myjet.gen_p4) : -1.;
-            myjet.gen_DPtOverPt = myjet.gen_matched ? (myjet.p4.Pt() - myjet.gen_p4.Pt()) / myjet.p4.Pt() : -10.;
-            myjet.gen_b = (alljets.hadronFlavor[ijet]) == 5; // redundant with gen_matched_bHadron defined above
-            myjet.gen_c = (alljets.hadronFlavor[ijet]) == 4;
-            myjet.gen_l = (alljets.hadronFlavor[ijet]) < 4;
-            if (!myjet.id_L)
+        if (!((alljets.p4[ijet].Pt() * correctionFactor > m_jetPtCut) 
+            && (fabs(alljets.p4[ijet].Eta()) < m_jetEtaCut) && alljets.passLooseID[ijet]))
                 continue;
-            jets.push_back(myjet);
-            // filling maps
-            // no jet ID
-            map_j[ jetIDbtagWP(jetID::no, btagWP::no) ].push_back(count);
-            if (myjet.btag_L)
-                map_j[ jetIDbtagWP(jetID::no, btagWP::L) ].push_back(count);
-            if (myjet.btag_M)
-                map_j[ jetIDbtagWP(jetID::no, btagWP::M) ].push_back(count);
-            if (myjet.btag_T)
-                map_j[ jetIDbtagWP(jetID::no, btagWP::T) ].push_back(count);
-            // loose jet ID
-            if (myjet.id_L)
-            {
-                map_j[ jetIDbtagWP(jetID::L, btagWP::no) ].push_back(count);
-                if (myjet.btag_L)
-                    map_j[ jetIDbtagWP(jetID::L, btagWP::L) ].push_back(count);
-                if (myjet.btag_M)
-                    map_j[ jetIDbtagWP(jetID::L, btagWP::M) ].push_back(count);
-                if (myjet.btag_T)
-                    map_j[ jetIDbtagWP(jetID::L, btagWP::T) ].push_back(count);
-            }
-            // tight jet ID
-            if (myjet.id_T)
-            {
-                map_j[ jetIDbtagWP(jetID::T, btagWP::no) ].push_back(count);
-                if (myjet.btag_L)
-                    map_j[ jetIDbtagWP(jetID::T, btagWP::L) ].push_back(count);
-                if (myjet.btag_M)
-                    map_j[ jetIDbtagWP(jetID::T, btagWP::M) ].push_back(count);
-                if (myjet.btag_T)
-                    map_j[ jetIDbtagWP(jetID::T, btagWP::T) ].push_back(count);
-            }
-            // tight jet ID lepton veto
-            if (myjet.id_TLV)
-            {
-                map_j[ jetIDbtagWP(jetID::TLV, btagWP::no) ].push_back(count);
-                if (myjet.btag_L)
-                    map_j[ jetIDbtagWP(jetID::TLV, btagWP::L) ].push_back(count);
-                if (myjet.btag_M)
-                    map_j[ jetIDbtagWP(jetID::TLV, btagWP::M) ].push_back(count);
-                if (myjet.btag_T)
-                    map_j[ jetIDbtagWP(jetID::TLV, btagWP::T) ].push_back(count);
-            }
-            count++;
+
+        HH::Jet myjet;
+        // Jet veto based on DR with all selected leptons
+        float DRj_l1 = -1;
+        float DRj_l2 = -1;
+        if (ll.size() > 0) {
+            DRj_l1 = ROOT::Math::VectorUtil::DeltaR(myjet.p4, leptons[ll[0].ilep1].p4);
+            DRj_l2 = ROOT::Math::VectorUtil::DeltaR(myjet.p4, leptons[ll[0].ilep2].p4); 
         }
+        myjet.minDR_jet_selLeptons = std::min(DRj_l1, DRj_l2);
+
+        float DRjl_allLep = std::numeric_limits<float>::max();
+        for (auto lepton : leptons) {
+            float DRjl_allLep_temp = ROOT::Math::VectorUtil::DeltaR(myjet.p4, lepton.p4);
+            if (DRjl_allLep_temp < DRjl_allLep)
+                DRjl_allLep = DRjl_allLep_temp;
+        }
+        myjet.minDR_jet_allLeptons = DRjl_allLep;
+        if (myjet.minDR_jet_allLeptons < m_minDR_l_j_Cut)
+            continue;
+
+        myjet.p4 = alljets.p4[ijet] * correctionFactor;
+        myjet.idx = ijet;
+        myjet.id_L = alljets.passLooseID[ijet];
+        myjet.id_T = alljets.passTightID[ijet];
+        myjet.id_TLV = alljets.passTightLeptonVetoID[ijet];
+        myjet.CSV = alljets.getBTagDiscriminant(ijet, "pfCombinedInclusiveSecondaryVertexV2BJetTags");
+        myjet.JP = alljets.getBTagDiscriminant(ijet, "pfJetProbabilityBJetTags");
+        float mybtag = alljets.getBTagDiscriminant(ijet, m_jet_bDiscrName);
+        myjet.btag_L = mybtag > m_jet_bDiscrCut_loose;
+        myjet.btag_M = mybtag > m_jet_bDiscrCut_medium;
+        myjet.btag_T = mybtag > m_jet_bDiscrCut_tight;
+        myjet.gen_matched_bParton = (alljets.partonFlavor[ijet]) == 5;
+        myjet.gen_matched_bHadron = (alljets.hadronFlavor[ijet]) == 5;
+        myjet.gen_matched = alljets.matched[ijet];
+        myjet.gen_p4 = myjet.gen_matched ? alljets.gen_p4[ijet] : null_p4;
+        myjet.gen_DR = myjet.gen_matched ? ROOT::Math::VectorUtil::DeltaR(myjet.p4, myjet.gen_p4) : -1.;
+        myjet.gen_DPtOverPt = myjet.gen_matched ? (myjet.p4.Pt() - myjet.gen_p4.Pt()) / myjet.p4.Pt() : -10.;
+        myjet.gen_b = (alljets.hadronFlavor[ijet]) == 5; // redundant with gen_matched_bHadron defined above
+        myjet.gen_c = (alljets.hadronFlavor[ijet]) == 4;
+        myjet.gen_l = (alljets.hadronFlavor[ijet]) < 4;
+        jets.push_back(myjet);
+        count++;
     }
+    if (jets.size() < 2)
+        return;
 
     jj.clear();
-    // Do NOT change the loop logic here: we expect [0] to be made out of the leading jets
-    for (unsigned int ijj = 0; ijj < map_jj.size(); ijj++)
-        map_jj[ijj].clear();
     count = 0;
 
     for (unsigned int ijet1 = 0; ijet1 < jets.size(); ijet1++)
@@ -573,6 +438,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myjj.sumJP = jets[ijet1].JP + jets[ijet2].JP;
             myjj.DR_j_j = ROOT::Math::VectorUtil::DeltaR(jets[ijet1].p4, jets[ijet2].p4);
             myjj.DPhi_j_j = fabs(ROOT::Math::VectorUtil::DeltaPhi(jets[ijet1].p4, jets[ijet2].p4));
+            myjj.ht_j_j = jets[ijet1].p4.Pt() + jets[ijet2].p4.Pt();
             myjj.gen_matched_bbPartons = jets[ijet1].gen_matched_bParton && jets[ijet2].gen_matched_bParton; 
             myjj.gen_matched_bbHadrons = jets[ijet1].gen_matched_bHadron && jets[ijet2].gen_matched_bHadron; 
             myjj.gen_matched = jets[ijet1].gen_matched && jets[ijet2].gen_matched;
@@ -586,88 +452,10 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myjj.gen_cl = (jets[ijet1].gen_c && jets[ijet2].gen_l) || (jets[ijet1].gen_l && jets[ijet2].gen_c);
             myjj.gen_ll = (jets[ijet1].gen_l && jets[ijet2].gen_l);
             jj.push_back(myjj);
-            // fill dijet map
-            // FIXME for now only with symmetric cases
-            map_jj[ jetjetIDbtagWPPair(jetID::no, btagWP::no, jetID::no, btagWP::no, jetPair::ht) ].push_back(count);
-            if (myjj.btag_LL)
-                map_jj[ jetjetIDbtagWPPair(jetID::no, btagWP::L, jetID::no, btagWP::L, jetPair::ht) ].push_back(count);
-            if (myjj.btag_MM)
-                map_jj[ jetjetIDbtagWPPair(jetID::no, btagWP::M, jetID::no, btagWP::M, jetPair::ht) ].push_back(count);
-            if (myjj.btag_TT)
-                map_jj[ jetjetIDbtagWPPair(jetID::no, btagWP::T, jetID::no, btagWP::T, jetPair::ht) ].push_back(count);
-            if (jets[ijet1].id_L && jets[ijet2].id_L)
-            {
-                map_jj[ jetjetIDbtagWPPair(jetID::L, btagWP::no, jetID::L, btagWP::no, jetPair::ht) ].push_back(count);
-                if (myjj.btag_LL)
-                    map_jj[ jetjetIDbtagWPPair(jetID::L, btagWP::L, jetID::L, btagWP::L, jetPair::ht) ].push_back(count);
-                if (myjj.btag_MM)
-                    map_jj[ jetjetIDbtagWPPair(jetID::L, btagWP::M, jetID::L, btagWP::M, jetPair::ht) ].push_back(count);
-                if (myjj.btag_TT)
-                    map_jj[ jetjetIDbtagWPPair(jetID::L, btagWP::T, jetID::L, btagWP::T, jetPair::ht) ].push_back(count);
-            }
-            if (jets[ijet1].id_T && jets[ijet2].id_T)
-            {
-                map_jj[ jetjetIDbtagWPPair(jetID::T, btagWP::no, jetID::T, btagWP::no, jetPair::ht) ].push_back(count);
-                if (myjj.btag_LL)
-                    map_jj[ jetjetIDbtagWPPair(jetID::T, btagWP::L, jetID::T, btagWP::L, jetPair::ht) ].push_back(count);
-                if (myjj.btag_MM)
-                    map_jj[ jetjetIDbtagWPPair(jetID::T, btagWP::M, jetID::T, btagWP::M, jetPair::ht) ].push_back(count);
-                if (myjj.btag_TT)
-                    map_jj[ jetjetIDbtagWPPair(jetID::T, btagWP::T, jetID::T, btagWP::T, jetPair::ht) ].push_back(count);
-            }
-            if (jets[ijet1].id_TLV && jets[ijet2].id_TLV)
-            {
-                map_jj[ jetjetIDbtagWPPair(jetID::TLV, btagWP::no, jetID::TLV, btagWP::no, jetPair::ht) ].push_back(count);
-                if (myjj.btag_LL)
-                    map_jj[ jetjetIDbtagWPPair(jetID::TLV, btagWP::L, jetID::TLV, btagWP::L, jetPair::ht) ].push_back(count);
-                if (myjj.btag_MM)
-                    map_jj[ jetjetIDbtagWPPair(jetID::TLV, btagWP::M, jetID::TLV, btagWP::M, jetPair::ht) ].push_back(count);
-                if (myjj.btag_TT)
-                    map_jj[ jetjetIDbtagWPPair(jetID::TLV, btagWP::T, jetID::TLV, btagWP::T, jetPair::ht) ].push_back(count);
-            }
             count++;
         }
     }
 
-    // Fill the rest of dijet combinatoric maps
-    for (const jetID::jetID& ijetid1: jetID::it)
-    {
-        for (const btagWP::btagWP& ibtag1: btagWP::it)
-        {
-            for (const jetID::jetID& ijetid2: jetID::it)
-            {
-                for (const btagWP::btagWP& ibtag2: btagWP::it)
-                {
-                    int iht = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::ht);
-                    int jpt = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::pt);
-                    int jmh = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::mh);
-                    int jcsv = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::csv);
-                    int jjp = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::jp);
-                    int jptOverM = jetjetIDbtagWPPair(ijetid1, ibtag1, ijetid2, ibtag2, jetPair::ptOverM);
-                    std::vector<int> tmp = map_jj[iht];
-                    // do the ptjj sorted maps
-                    std::sort(tmp.begin(), tmp.end(), [&](const int& a, const int& b){return jj[a].p4.Pt() > jj[b].p4.Pt();});
-                    map_jj[jpt] = tmp;
-                    // do the closest to mh sorted maps
-                    tmp = map_jj[iht];
-                    std::sort(tmp.begin(), tmp.end(), [&](const int& a, const int& b){return fabs(jj[a].p4.M() - mh) < fabs(jj[b].p4.M() - mh);});
-                    map_jj[jmh] = tmp;
-                    // do the sum(btag) sorted maps
-                    tmp = map_jj[iht];
-                    std::sort(tmp.begin(), tmp.end(), [&](const int& a, const int& b){return jj[a].sumCSV > jj[b].sumCSV;});
-                    map_jj[jcsv] = tmp;
-                    tmp = map_jj[iht];
-                    std::sort(tmp.begin(), tmp.end(), [&](const int& a, const int& b){return jj[a].sumJP > jj[b].sumJP;});
-                    map_jj[jjp] = tmp;
-                    // do the ptjj / mjj sorted maps
-                    tmp = map_jj[iht];
-                    std::sort(tmp.begin(), tmp.end(), [&](const int& a, const int& b){return (jj[a].p4.Pt() / jj[a].p4.M()) > (jj[b].p4.Pt() / jj[b].p4.M());});
-                    map_jj[jptOverM] = tmp;
-                }
-            }
-        }
-    }
- 
     // ********** 
     // lljj, llbb, +pf_met
     // ********** 
@@ -691,6 +479,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myllmetjj.met_p4 = met[imet].p4;
             myllmetjj.ll_p4 = ll[ill].p4;
             myllmetjj.jj_p4 = jj[ijj].p4;
+            myllmetjj.ht_j_j = jj[ijj].ht_j_j;
+            myllmetjj.ht_l_l = ll[ill].ht_l_l;
             myllmetjj.lljj_p4 = ll[ill].p4 + jj[ijj].p4;
             // gen info
             myllmetjj.gen_matched = ll[ill].gen_matched && jj[ijj].gen_matched && met[imet].gen_matched;
@@ -830,88 +620,50 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             llmetjj.push_back(myllmetjj);
         }
     }
+    if (!llmetjj.size()>0)
+        return;
 
-    if (HHANADEBUG) {std::cout << "##### Now debugging the llmetjj maps" << std::endl;}
-    // llmetjj maps: cross product of llmet and jj maps
-    for (unsigned int i = 0; i < map_llmetjj.size(); i++)
-        map_llmetjj[i].clear();
-
-    for (const lepID::lepID& il1id: lepID::it)
-    {
-        for (const lepIso::lepIso& il1iso: lepIso::it)
-        {
-            for (const lepID::lepID& il2id: lepID::it)
-            {
-                for (const lepIso::lepIso& il2iso: lepIso::it)
-                {
-                    for (const jetID::jetID& ij1id: jetID::it)
-                    {
-                        for (const btagWP::btagWP& ibtag1: btagWP::it)
-                        {
-                            for(const jetID::jetID& ij2id: jetID::it)
-                            {
-                                for(const btagWP::btagWP& ibtag2: btagWP::it)
-                                {
-                                    for(const jetPair::jetPair& ipair: jetPair::it)
-                                    {
-                                        int illmetjj = leplepIDIsojetjetIDbtagWPPair(il1id, il1iso, il2id, il2iso, ij1id, ibtag1, ij2id, ibtag2, ipair);
-                                        int illmet = leplepIDIso(il1id, il1iso, il2id, il2iso);
-                                        int ijj = jetjetIDbtagWPPair(ij1id, ibtag1, ij2id, ibtag2, ipair);
-                                        if (map_llmet[illmet].size() == 0 || map_jj[ijj].size() == 0)
-                                            continue;
-                                        if (HHANADEBUG)
-                                        {
-                                            std::cout << "Now treating illmetjj= " << illmetjj << " (illmet, ijj)= (" << illmet << ", " << ijj << ")" << std::endl;
-                                            std::cout << "map_llmet[" << illmet << "].size()= " << map_llmet[illmet].size() << std::endl;
-                                            for (unsigned int j = 0; j < map_llmet[illmet].size(); j++)
-                                                std::cout << "\tmap_llmet[" << illmet << "][" << j << "]= " << map_llmet[illmet][j] << std::endl;
-                                            std::cout << "map_jj[" << ijj << "].size()= " << map_jj[ijj].size() << std::endl;
-                                            for (unsigned int j = 0; j < map_jj[ijj].size(); j++)
-                                                std::cout << "\tmap_jj[" << ijj << "][" << j << "]= " << map_jj[ijj][j] << std::endl;
-                                        }
-                                        for (unsigned int jjj = 0; jjj < map_jj[ijj].size(); jjj++)
-                                        {
-                                            for (unsigned int i = 0; i < llmetjj.size(); i++)
-                                            {
-                                                if (std::find(map_llmet[illmet].begin(), map_llmet[illmet].end(), llmetjj[i].illmet) == map_llmet[illmet].end())
-                                                    continue;
-                                                if (llmetjj[i].ijj == map_jj[ijj][jjj])
-                                                {
-                                                    map_llmetjj[illmetjj].push_back(i);
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Different llmetjj candidate
+    llmetjj_HWWleptons_nobtag_pt.clear();
+    llmetjj_HWWleptons_btagL_pt.clear();
+    llmetjj_HWWleptons_btagM_pt.clear();
+    llmetjj_HWWleptons_btagMT_pt.clear();
+    llmetjj_HWWleptons_btagML_pt.clear();
+    llmetjj_HWWleptons_btagT_pt.clear();
+    for (auto llmetjj_cand : llmetjj){
+        llmetjj_HWWleptons_nobtag_pt.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_LL)
+            llmetjj_HWWleptons_btagL_pt.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_MM)
+            llmetjj_HWWleptons_btagM_pt.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_ML || llmetjj_cand.btag_LM)
+            llmetjj_HWWleptons_btagML_pt.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_MT || llmetjj_cand.btag_TM)
+            llmetjj_HWWleptons_btagMT_pt.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_TT)
+            llmetjj_HWWleptons_btagT_pt.push_back(llmetjj_cand);
     }
-    // Adding some few custom candidates, for convenience
-    int icustom = leplepIDIsojetjetIDbtagWPPair(lepID::HWW, lepIso::HWW, lepID::HWW, lepIso::HWW, jetID::L, btagWP::no, jetID::L, btagWP::no, jetPair::csv);
+
+    std::sort(llmetjj.begin(), llmetjj.end(), [](const HH::DileptonMetDijet& llmetjj1, const HH::DileptonMetDijet& llmetjj2) { return llmetjj1.sumCSV > llmetjj1.sumCSV; });     
     llmetjj_HWWleptons_nobtag_csv.clear();
-    for (unsigned int icandidate = 0; icandidate < map_llmetjj[icustom].size(); icandidate++)
-        llmetjj_HWWleptons_nobtag_csv.push_back(llmetjj[map_llmetjj[icustom][icandidate]]);
-
-    icustom = leplepIDIsojetjetIDbtagWPPair(lepID::HWW, lepIso::HWW, lepID::HWW, lepIso::HWW, jetID::L, btagWP::L, jetID::L, btagWP::L, jetPair::csv);
     llmetjj_HWWleptons_btagL_csv.clear();
-    for (unsigned int icandidate = 0; icandidate < map_llmetjj[icustom].size(); icandidate++)
-        llmetjj_HWWleptons_btagL_csv.push_back(llmetjj[map_llmetjj[icustom][icandidate]]);
-
-    icustom = leplepIDIsojetjetIDbtagWPPair(lepID::HWW, lepIso::HWW, lepID::HWW, lepIso::HWW, jetID::L, btagWP::M, jetID::L, btagWP::M, jetPair::csv);
     llmetjj_HWWleptons_btagM_csv.clear();
-    for (unsigned int icandidate = 0; icandidate < map_llmetjj[icustom].size(); icandidate++)
-        llmetjj_HWWleptons_btagM_csv.push_back(llmetjj[map_llmetjj[icustom][icandidate]]);
-
-    icustom = leplepIDIsojetjetIDbtagWPPair(lepID::HWW, lepIso::HWW, lepID::HWW, lepIso::HWW, jetID::L, btagWP::T, jetID::L, btagWP::T, jetPair::csv);
+    llmetjj_HWWleptons_btagMT_csv.clear();
+    llmetjj_HWWleptons_btagML_csv.clear();
     llmetjj_HWWleptons_btagT_csv.clear();
-    for (unsigned int icandidate = 0; icandidate < map_llmetjj[icustom].size(); icandidate++)
-        llmetjj_HWWleptons_btagT_csv.push_back(llmetjj[map_llmetjj[icustom][icandidate]]);
-
+    for (auto llmetjj_cand : llmetjj){
+        llmetjj_HWWleptons_nobtag_csv.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_LL)
+            llmetjj_HWWleptons_btagL_csv.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_MM)
+            llmetjj_HWWleptons_btagM_csv.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_ML || llmetjj_cand.btag_LM)
+            llmetjj_HWWleptons_btagML_csv.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_MT || llmetjj_cand.btag_TM)
+            llmetjj_HWWleptons_btagMT_csv.push_back(llmetjj_cand);
+        if (llmetjj_cand.btag_TT)
+            llmetjj_HWWleptons_btagT_csv.push_back(llmetjj_cand);
+    }
 
     // ***** ***** *****
     // Event variables
@@ -921,6 +673,11 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     for (unsigned int ijet = 0; ijet < jets.size(); ijet++)
         if (jets[ijet].id_L)
             nJetsL++;
+    nJetsT = 0;
+    for (unsigned int ijet = 0; ijet < jets.size(); ijet++)
+        if (jets[ijet].id_T)
+            nJetsT++;
+
     nBJetsL = 0;
     nBJetsM = 0;
     nBJetsT = 0;
@@ -937,12 +694,15 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     nMuons = muons.size();
     nMuonsL = 0;
     nMuonsT = 0;
+    nMuonsHWW = 0;
     nElectrons = electrons.size();
     nElectronsL = 0;
     nElectronsT = 0;
+    nElectronsHWW = 0;
     nLeptons = leptons.size();
     nLeptonsL = 0;
     nLeptonsT = 0;
+    nLeptonsHWW = 0;
     for (unsigned int ilepton = 0; ilepton < leptons.size(); ilepton++)
     {
         if (leptons[ilepton].id_L && leptons[ilepton].iso_L)
@@ -960,6 +720,14 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
                 nMuonsT++;
             if (leptons[ilepton].isEl)
                 nElectronsT++;
+        }
+        if (leptons[ilepton].id_HWW && leptons[ilepton].iso_HWW)
+        {
+            nLeptonsHWW++;
+            if (leptons[ilepton].isMu)
+                nMuonsHWW++;
+            if (leptons[ilepton].isEl)
+                nElectronsHWW++;
         }
     }
 
@@ -1520,6 +1288,16 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         std::cout << "Error: unknown ttbar decay." << std::endl;
         gen_ttbar_decay_type = UnknownTT;
     }
+    // Retrieve the 4-vector of the hard process particles for transfer function
+    if (gen_b_beforeFSR != 0)
+        gen_ttbar_b_beforeFSR_p4 = gp.pruned_p4[gen_b_beforeFSR];
+    if (gen_bbar_beforeFSR != 0)
+        gen_ttbar_bbar_beforeFSR_p4 = gp.pruned_p4[gen_bbar_beforeFSR]; 
+    if (gen_lepton_t_beforeFSR != 0)
+        gen_ttbar_lepton_t_beforeFSR_p4 = gp.pruned_p4[gen_lepton_t_beforeFSR];
+    if (gen_lepton_tbar_beforeFSR != 0)
+        gen_ttbar_lepton_tbar_beforeFSR_p4 = gp.pruned_p4[gen_lepton_tbar_beforeFSR];
+
     } // end of if !event.isRealData()
 
 }

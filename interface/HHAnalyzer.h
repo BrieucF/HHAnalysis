@@ -69,25 +69,26 @@ class HHAnalyzer: public Framework::Analyzer {
         BRANCH(leptons, std::vector<HH::Lepton>);
         BRANCH(met, std::vector<HH::Met>);
         BRANCH(jets, std::vector<HH::Jet>);
+        BRANCH(lightjetsM, std::vector<HH::Jet>);
+        BRANCH(bjetsL, std::vector<HH::Jet>);
+        BRANCH(bjetsM, std::vector<HH::Jet>);
+        BRANCH(bjetsT, std::vector<HH::Jet>);
         std::vector<HH::Dilepton> ll;
         std::vector<HH::DileptonMet> llmet;
         std::vector<HH::Dijet> jj;
         std::vector<HH::DileptonMetDijet> llmetjj;
-        // some few custom candidates, for convenience
-        // Januray 2016: preapproval freezing custom candidates
+        BRANCH(llmetjj_HWWleptons_nobtag_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_nobtag_csv, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagL_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagL_csv, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagM_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagM_csv, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagML_pt, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagML_csv, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagMT_pt, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagMT_csv, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagT_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagT_csv, std::vector<HH::DileptonMetDijet>);
-
-        // maps
-        std::vector<std::vector<int>> map_l = std::vector<std::vector<int>>(lepID::Count * lepIso::Count, std::vector<int>(0));
-        std::vector<std::vector<int>> map_ll = std::vector<std::vector<int>>(lepID::Count * lepIso::Count * lepID::Count * lepIso::Count, std::vector<int>(0));
-        // FIXME: add enum over met?
-        std::vector<std::vector<int>> map_llmet = std::vector<std::vector<int>>(lepID::Count * lepIso::Count * lepID::Count * lepIso::Count, std::vector<int>(0));
-        std::vector<std::vector<int>> map_j = std::vector<std::vector<int>>(jetID::Count * btagWP::Count, std::vector<int>(0));
-        std::vector<std::vector<int>> map_jj = std::vector<std::vector<int>>(jetID::Count * jetID::Count * btagWP::Count * btagWP::Count * jetPair::Count, std::vector<int>(0));
-        std::vector<std::vector<int>> map_llmetjj = std::vector<std::vector<int>>(lepID::Count * lepIso::Count * lepID::Count * lepIso::Count * jetID::Count * jetID::Count * btagWP::Count * btagWP::Count * jetPair::Count, std::vector<int>(0));
 
         virtual void analyze(const edm::Event&, const edm::EventSetup&, const ProducersManager&, const AnalyzersManager&, const CategoryManager&) override;
         virtual void registerCategories(CategoryManager& manager, const edm::ParameterSet& config) override;
@@ -99,18 +100,23 @@ class HHAnalyzer: public Framework::Analyzer {
         // global event stuff (selected objects multiplicity)
         BRANCH(nJets, unsigned int);
         BRANCH(nJetsL, unsigned int);
+        BRANCH(nJetsT, unsigned int);
+        BRANCH(nJetsL_DRjl, unsigned int);
         BRANCH(nBJetsL, unsigned int);
         BRANCH(nBJetsM, unsigned int);
         BRANCH(nBJetsT, unsigned int);
         BRANCH(nMuons, unsigned int);
         BRANCH(nMuonsL, unsigned int);
         BRANCH(nMuonsT, unsigned int);
+        BRANCH(nMuonsHWW, unsigned int);
         BRANCH(nElectrons, unsigned int);
         BRANCH(nElectronsL, unsigned int);
         BRANCH(nElectronsT, unsigned int);
+        BRANCH(nElectronsHWW, unsigned int);
         BRANCH(nLeptons, unsigned int);
         BRANCH(nLeptonsL, unsigned int);
         BRANCH(nLeptonsT, unsigned int);
+        BRANCH(nLeptonsHWW, unsigned int);
 
         float count_has2leptons = 0.;
         float count_has2leptons_elel = 0.;
@@ -161,6 +167,10 @@ class HHAnalyzer: public Framework::Analyzer {
         uint16_t gen_neutrino_tbar_beforeFSR; // Index of the neutrino from the anti-top decay chain, before any FSR
 
         BRANCH(gen_ttbar_decay_type, char); // Type of ttbar decay. Can take any values from TTDecayType enum
+        BRANCH(gen_ttbar_b_beforeFSR_p4, LorentzVector); // Lorentz vector of the b anti-quark from the anti-top decay chain, before any FSR
+        BRANCH(gen_ttbar_lepton_tbar_beforeFSR_p4, LorentzVector); // Lorentz vector of the lepton from the anti-top decay chain, before any FSR
+        BRANCH(gen_ttbar_bbar_beforeFSR_p4, LorentzVector); // Lorentz vector of the b-quark from the top decay chain, before any FSR
+        BRANCH(gen_ttbar_lepton_t_beforeFSR_p4, LorentzVector); // Lorentz vector of the lepton from the top decay chain, before any FSR
 
         // Di-higgs gen system
         BRANCH(gen_iX, char);

@@ -28,18 +28,11 @@ const std::vector<HH::DileptonMetDijet>& DileptonCategory::getDileptonMetDijets(
 // ***** ***** *****
 bool MuMuCategory::event_in_category_pre_analyzers(const ProducersManager& producers) const {
     const MuonsProducer& muons = producers.get<MuonsProducer>("muons");
-    return (muons.p4.size() >= 2);
+    return (muons.p4.size() >= 1);
 };
 
 bool MuMuCategory::event_in_category_post_analyzers(const ProducersManager& producers, const AnalyzersManager& analyzers) const {
-    const std::vector<HH::Dilepton>& ll = getDileptons(analyzers);
-    const std::vector<HH::DileptonMetDijet>& llmetjj = getDileptonMetDijets(analyzers);
-    bool isMuMu = false;
-    for (unsigned int idilep = 0; idilep < ll.size(); idilep++) 
-    {
-        if (ll[idilep].isMuMu) isMuMu = true;
-    }
-    return (isMuMu && llmetjj.size() > 0);
+    return true;
 };
 
 void MuMuCategory::register_cuts(CutManager& manager) {
@@ -63,18 +56,11 @@ void MuMuCategory::evaluate_cuts_post_analyzers(CutManager& manager, const Produ
 // ***** ***** *****
 bool ElElCategory::event_in_category_pre_analyzers(const ProducersManager& producers) const {
     const ElectronsProducer& electrons = producers.get<ElectronsProducer>("electrons");
-    return (electrons.p4.size() >= 2);
+    return (electrons.p4.size() >= 1);
 };
 
 bool ElElCategory::event_in_category_post_analyzers(const ProducersManager& producers, const AnalyzersManager& analyzers) const {
-    const std::vector<HH::Dilepton>& ll = getDileptons(analyzers);
-    const std::vector<HH::DileptonMetDijet>& llmetjj = getDileptonMetDijets(analyzers);
-    bool isElEl = false;
-    for (unsigned int idilep = 0; idilep < ll.size(); idilep++) 
-    {
-        if (ll[idilep].isElEl) isElEl = true;
-    }
-    return (isElEl && llmetjj.size() > 0);
+    return true;
 };
 
 void ElElCategory::register_cuts(CutManager& manager) {
@@ -97,18 +83,11 @@ void ElElCategory::evaluate_cuts_post_analyzers(CutManager& manager, const Produ
 bool ElMuCategory::event_in_category_pre_analyzers(const ProducersManager& producers) const {
     const ElectronsProducer& electrons = producers.get<ElectronsProducer>("electrons");
     const MuonsProducer& muons = producers.get<MuonsProducer>("muons");
-    return ((electrons.p4.size() + muons.p4.size()) >= 2);
+    return ((electrons.p4.size() + muons.p4.size()) >= 1);
 };
 
 bool ElMuCategory::event_in_category_post_analyzers(const ProducersManager& producers, const AnalyzersManager& analyzers) const {
-    const std::vector<HH::Dilepton>& ll = getDileptons(analyzers);
-    const std::vector<HH::DileptonMetDijet>& llmetjj = getDileptonMetDijets(analyzers);
-    bool isElMu = false;
-    for (unsigned int idilep = 0; idilep < ll.size(); idilep++) 
-    {
-        if (ll[idilep].isElMu) isElMu = true;
-    }
-    return (isElMu && llmetjj.size() > 0);
+    return true;
 };
 
 void ElMuCategory::register_cuts(CutManager& manager) {
@@ -129,18 +108,11 @@ void ElMuCategory::evaluate_cuts_post_analyzers(CutManager& manager, const Produ
 bool MuElCategory::event_in_category_pre_analyzers(const ProducersManager& producers) const {
     const ElectronsProducer& electrons = producers.get<ElectronsProducer>("electrons");
     const MuonsProducer& muons = producers.get<MuonsProducer>("muons");
-    return ((electrons.p4.size() + muons.p4.size()) >= 2);
+    return ((electrons.p4.size() + muons.p4.size()) >= 1);
 };
 
 bool MuElCategory::event_in_category_post_analyzers(const ProducersManager& producers, const AnalyzersManager& analyzers) const {
-    const std::vector<HH::Dilepton>& ll = getDileptons(analyzers);
-    const std::vector<HH::DileptonMetDijet>& llmetjj = getDileptonMetDijets(analyzers);
-    bool isMuEl = false;
-    for (unsigned int idilep = 0; idilep < ll.size(); idilep++) 
-    {
-        if (ll[idilep].isMuEl) isMuEl = true;
-    }
-    return (isMuEl && llmetjj.size() > 0);
+    return true;
 };
 
 void MuElCategory::register_cuts(CutManager& manager) {
