@@ -5,7 +5,7 @@ from Configuration.StandardSequences.Eras import eras
 from cp3_llbb.Framework import Framework
 from cp3_llbb.Framework import METProducer
 
-runOnData = True
+runOnData = False
 
 globalTag_ = '76X_mcRun2_asymptotic_RunIIFall15DR76_v1'
 processName_ = 'PAT'
@@ -51,8 +51,8 @@ framework.addAnalyzer('hh_analyzer', cms.PSet(
             discr_cut_medium =  cms.untracked.double(0.800),
             discr_cut_tight =  cms.untracked.double(0.935),
             minDR_l_j_Cut = cms.untracked.double(0.3),
-            hltDRCut = cms.untracked.double(0.4),
-            hltDPtCut = cms.untracked.double(1),  # cut will be DPt/Pt < hltDPtCut
+            hltDRCut = cms.untracked.double(0.1),
+            hltDPtCut = cms.untracked.double(0.5),  # cut will be DPt/Pt < hltDPtCut
             applyBJetRegression = cms.untracked.bool(False), # BE SURE TO ACTIVATE computeRegression FLAG BELOW
             hlt_efficiencies = cms.untracked.PSet(
                 Ele17_12Leg1 = cms.untracked.FileInPath('cp3_llbb/Framework/data/Efficiencies/Electron_HLT_Ele17_12Leg1_76X_Tight_HWW.json'),
@@ -84,12 +84,12 @@ process = framework.create()
 
 if runOnData : 
     process.source.fileNames = cms.untracked.vstring(
-        #'/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/00039A2E-D7A7-E511-98EE-3417EBE64696.root'
-        '/store/data/Run2015D/DoubleEG/MINIAOD/16Dec2015-v1/70000/E29812EC-58A5-E511-8FC8-0CC47A78A42E.root'
+        '/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/00039A2E-D7A7-E511-98EE-3417EBE64696.root'
+        #'/store/data/Run2015D/DoubleEG/MINIAOD/16Dec2015-v2/00000/000298CD-87A6-E511-9E56-002590593878.root'
         )
 else : 
     process.source.fileNames = cms.untracked.vstring(
         '/store/mc/RunIIFall15MiniAODv2/TTTo2L2Nu_13TeV-powheg/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/50FF8034-BEB9-E511-A09C-001EC9ADDD58.root'
         )
 
-process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))
+process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(1000))

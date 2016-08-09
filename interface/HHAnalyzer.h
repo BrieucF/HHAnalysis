@@ -101,7 +101,6 @@ class HHAnalyzer: public Framework::Analyzer {
         BRANCH(nJets, unsigned int);
         BRANCH(nJetsL, unsigned int);
         BRANCH(nJetsT, unsigned int);
-        BRANCH(nJetsL_DRjl, unsigned int);
         BRANCH(nBJetsL, unsigned int);
         BRANCH(nBJetsM, unsigned int);
         BRANCH(nBJetsT, unsigned int);

@@ -9,7 +9,17 @@ typedef ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiE4D<float>> LorentzVector;
 namespace HH {
     struct Lepton {
         LorentzVector p4;
+
         LorentzVector gen_p4;
+        bool tt_matched;
+        LorentzVector tt_gen_p4;
+        float tt_gen_DR;
+        LorentzVector tt_parton_p4;
+        float tt_parton_DR;
+        bool gen_matched;
+        float gen_DR;
+        float gen_DPtOverPt;
+
         int8_t charge;
         int idx;
         int8_t hlt_idx = -1; // Index to the matched HLT object. -1 if no match. 
@@ -17,6 +27,7 @@ namespace HH {
         bool hlt_already_tried_matching = false; // do the matching only once, even when the lepton is in several Dilepton
         float hlt_DR_matchedObject = std::numeric_limits<float>::max();
         float hlt_DPtOverPt_matchedObject = std::numeric_limits<float>::max();
+
         bool isMu;
         bool isEl;
         bool id_L; // Loose
@@ -26,9 +37,6 @@ namespace HH {
         bool iso_L; // Loose
         bool iso_T; // Tight
         bool iso_HWW;
-        bool gen_matched;
-        float gen_DR;
-        float gen_DPtOverPt;
     };
     struct Dilepton {
         LorentzVector p4;
@@ -107,7 +115,23 @@ namespace HH {
     };
     struct Jet {
         LorentzVector p4;
+
+        bool gen_matched_bParton;
+        bool gen_matched_bHadron;
+        bool gen_matched;
+        float gen_DR;
+        float gen_DPtOverPt;
+        bool gen_b;
+        bool gen_c;
+        bool gen_l;
         LorentzVector gen_p4;
+        bool tt_matched;
+        LorentzVector tt_gen_p4;
+        float tt_gen_DR;
+        LorentzVector tt_parton_p4;
+        float tt_parton_DR;
+
+        int8_t charge;
         int idx; // index in the FWK::alljets
         bool id_L;
         bool id_T;
@@ -119,14 +143,6 @@ namespace HH {
         float JP;
         float minDR_jet_selLeptons;
         float minDR_jet_allLeptons;
-        bool gen_matched_bParton;
-        bool gen_matched_bHadron;
-        bool gen_matched;
-        float gen_DR;
-        float gen_DPtOverPt;
-        bool gen_b;
-        bool gen_c;
-        bool gen_l;
     };
     struct Dijet {
         LorentzVector p4;
@@ -134,7 +150,9 @@ namespace HH {
         std::pair<int, int> idxs; // indices in the framework collection
         int ijet1; // indices in the HH::Jet collection
         int ijet2;
-        std::vector<int> iAdditionalJets; // indices in the HH::Jet collection
+        std::vector<int> iExtraJets; // indices in the HH::Jet collection
+        std::vector<float> min_DR_j_extraj; // minimal DR between extra jet and the two "nominal" jets
+        std::vector<float> M_j_j_extraj; // invariant mass of the three jet system
         bool btag_LL;
         bool btag_LM;
         bool btag_LT;

@@ -30,6 +30,354 @@ void HHAnalyzer::registerCategories(CategoryManager& manager, const edm::Paramet
 
 void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const ProducersManager& producers, const AnalyzersManager&, const CategoryManager&) {
 
+    // GEN MATCHING
+    const GenParticlesProducer* gp = nullptr;
+    if (!event.isRealData())
+    {
+        // TTBAR MC TRUTH
+        gp = &producers.get<GenParticlesProducer>("gen_particles");
+        std::function<bool(size_t, size_t)> pruned_decays_from = [&pruned_decays_from, &gp](size_t particle_index, size_t mother_index) -> bool {
+            // Iterator over all pruned particles to find if the particle `particle_index` has `mother_index` in its decay history
+            if (gp->pruned_mothers_index[particle_index].empty())
+                return false;
+
+            size_t index = gp->pruned_mothers_index[particle_index][0];
+
+            if (index == mother_index) {
+                return true;
+            }
+
+            if (pruned_decays_from(index, mother_index))
+                return true;
+
+            return false;
+        };
+
+        // 'Pruned' particles are from the hard process
+        // 'Packed' particles are stable particles
+
+#if TT_GEN_DEBUG
+        std::function<void(size_t)> print_mother_chain = [&gp, &print_mother_chain](size_t p) {
+
+            if (gp->pruned_mothers_index[p].empty()) {
+                std::cout << std::endl;
+                return;
+            }
+
+            size_t index = gp->pruned_mothers_index[p][0];
+                std::cout << " <- #" << index << "(" << gp->pruned_pdg_id[index] << ")";
+                print_mother_chain(index);
+        };
+#endif
+
+#define ASSIGN_INDEX( X ) \
+        if (flags.isLastCopy()) { \
+            gen_##X = i; \
+        }\
+        if (flags.isFirstCopy()) { \
+            gen_##X##_beforeFSR = i; \
+        }
+
+    // Assign index to X if it's empty, or Y if not
+#define ASSIGN_INDEX2(X, Y, ERROR) \
+        if (flags.isLastCopy()) { \
+            if (gen_##X == 0) \
+                gen_##X = i; \
+            else if (gen_##Y == 0)\
+                gen_##Y = i; \
+            else \
+                std::cout << ERROR << std::endl; \
+        } \
+        if (flags.isFirstCopy()) { \
+            if (gen_##X##_beforeFSR == 0) \
+                gen_##X##_beforeFSR = i; \
+            else if (gen_##Y##_beforeFSR == 0)\
+                gen_##Y##_beforeFSR = i; \
+            else \
+                std::cout << ERROR << std::endl; \
+        }
+
+        gen_t = 0; // Index of the top quark
+        gen_t_beforeFSR = 0; // Index of the top quark, before any FSR
+        gen_tbar = 0; // Index of the anti-top quark
+        gen_tbar_beforeFSR = 0; // Index of the anti-top quark, before any FSR
+
+        gen_b = 0; // Index of the b quark coming from the top decay
+        gen_b_beforeFSR = 0; // Index of the b quark coming from the top decay, before any FSR
+        gen_bbar = 0; // Index of the anti-b quark coming from the anti-top decay
+        gen_bbar_beforeFSR = 0; // Index of the anti-b quark coming from the anti-top decay, before any FSR
+
+        gen_jet1_t = 0; // Index of the first jet from the top decay chain
+        gen_jet1_t_beforeFSR = 0; // Index of the first jet from the top decay chain, before any FSR
+        gen_jet2_t = 0; // Index of the second jet from the top decay chain
+        gen_jet2_t_beforeFSR = 0; // Index of the second jet from the top decay chain, before any FSR
+
+        gen_jet1_tbar = 0; // Index of the first jet from the anti-top decay chain
+        gen_jet1_tbar_beforeFSR = 0; // Index of the first jet from the anti-top decay chain, before any FSR
+        gen_jet2_tbar = 0; // Index of the second jet from the anti-top decay chain
+        gen_jet2_tbar_beforeFSR = 0; // Index of the second jet from the anti-top decay chain, before any FSR
+
+        gen_lepton_t = 0; // Index of the lepton from the top decay chain
+        gen_lepton_t_beforeFSR = 0; // Index of the lepton from the top decay chain, before any FSR
+        gen_neutrino_t = 0; // Index of the neutrino from the top decay chain
+        gen_neutrino_t_beforeFSR = 0; // Index of the neutrino from the top decay chain, before any FSR
+
+        gen_lepton_tbar = 0; // Index of the lepton from the anti-top decay chain
+        gen_lepton_tbar_beforeFSR = 0; // Index of the lepton from the anti-top decay chain, before any FSR
+        gen_neutrino_tbar = 0; // Index of the neutrino from the anti-top decay chain
+        gen_neutrino_tbar_beforeFSR = 0; // Index of the neutrino from the anti-top decay chain, before any FSR
+        for (size_t i = 0; i < gp->pruned_pdg_id.size(); i++) {
+
+            int16_t pdg_id = gp->pruned_pdg_id[i];
+            uint16_t a_pdg_id = std::abs(pdg_id);
+
+            // We only care of particles with PDG id <= 16 (16 is neutrino tau)
+            if (a_pdg_id > 16)
+                continue;
+
+            GenStatusFlags flags(gp->pruned_status_flags[i]);
+
+            if (! flags.isLastCopy() && ! flags.isFirstCopy())
+                continue;
+
+            if (! flags.fromHardProcess())
+                continue;
+
+#if TT_GEN_DEBUG
+            std::cout << "---" << std::endl;
+            std::cout << "Gen particle #" << i << ": PDG id: " << gp->pruned_pdg_id[i];
+            print_mother_chain(i);
+            flags.dump();
+#endif
+
+            if (pdg_id == 6) {
+                ASSIGN_INDEX(t);
+                continue;
+            } else if (pdg_id == -6) {
+                ASSIGN_INDEX(tbar);
+                continue;
+            }
+
+            if (gen_t == 0 || gen_tbar == 0) {
+                // Don't bother if we don't have found the tops
+                continue;
+            }
+
+            bool from_t_decay = pruned_decays_from(i, gen_t);
+            bool from_tbar_decay = pruned_decays_from(i, gen_tbar);
+
+            // Only keep particles coming from the tops decay
+            if (! from_t_decay && ! from_tbar_decay)
+                continue;
+
+            if (pdg_id == 5) {
+                // Maybe it's a b coming from the W decay
+                if (!flags.isFirstCopy() && flags.isLastCopy() && gen_b == 0) {
+
+                    // This can be a B decaying from a W
+                    // However, we can't rely on the presence of the W in the decay chain, as it may be generator specific
+                    // Since it's the last copy (ie, after FSR), we can check if this B comes from the B assigned to the W decay (ie, gen_jet1_t_beforeFSR, gen_jet2_t_beforeFSR)
+                    // If yes, then it's not the B coming directly from the top decay
+                    if ((gen_jet1_t_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet1_t_beforeFSR]) == 5) ||
+                        (gen_jet2_t_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet2_t_beforeFSR]) == 5) ||
+                        (gen_jet1_tbar_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet1_tbar_beforeFSR]) == 5) ||
+                        (gen_jet2_tbar_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet2_tbar_beforeFSR]) == 5)) {
+
+#if TT_GEN_DEBUG
+                        std::cout << "A quark coming from W decay is a b" << std::endl;
+#endif
+
+                        if (! (gen_jet1_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_tbar_beforeFSR)) &&
+                            ! (gen_jet2_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_tbar_beforeFSR)) &&
+                            ! (gen_jet1_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_t_beforeFSR)) &&
+                            ! (gen_jet2_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_t_beforeFSR))) {
+#if TT_GEN_DEBUG
+                            std::cout << "This after-FSR b quark is not coming from a W decay" << std::endl;
+#endif
+                            gen_b = i;
+                            continue;
+                        }
+#if TT_GEN_DEBUG
+                        else {
+                            std::cout << "This after-FSR b quark comes from a W decay" << std::endl;
+                        }
+#endif
+                    } else {
+#if TT_GEN_DEBUG
+                        std::cout << "Assigning gen_b" << std::endl;
+#endif
+                        gen_b = i;
+                        continue;
+                    }
+                } else if (flags.isFirstCopy() && gen_b_beforeFSR == 0) {
+                    gen_b_beforeFSR = i;
+                    continue;
+                } else {
+#if TT_GEN_DEBUG
+                    std::cout << "This should not happen!" << std::endl;
+#endif
+                }
+            } else if (pdg_id == -5) {
+                if (!flags.isFirstCopy() && flags.isLastCopy() && gen_bbar == 0) {
+
+                    // This can be a B decaying from a W
+                    // However, we can't rely on the presence of the W in the decay chain, as it may be generator specific
+                    // Since it's the last copy (ie, after FSR), we can check if this B comes from the B assigned to the W decay (ie, gen_jet1_t_beforeFSR, gen_jet2_t_beforeFSR)
+                    // If yes, then it's not the B coming directly from the top decay
+                    if ((gen_jet1_t_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet1_t_beforeFSR]) == 5) ||
+                        (gen_jet2_t_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet2_t_beforeFSR]) == 5) ||
+                        (gen_jet1_tbar_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet1_tbar_beforeFSR]) == 5) ||
+                        (gen_jet2_tbar_beforeFSR != 0 && std::abs(gp->pruned_pdg_id[gen_jet2_tbar_beforeFSR]) == 5)) {
+
+#if TT_GEN_DEBUG
+                        std::cout << "A quark coming from W decay is a bbar" << std::endl;
+#endif
+
+                        if (! (gen_jet1_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_tbar_beforeFSR)) &&
+                            ! (gen_jet2_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_tbar_beforeFSR)) &&
+                            ! (gen_jet1_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_t_beforeFSR)) &&
+                            ! (gen_jet2_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_t_beforeFSR))) {
+#if TT_GEN_DEBUG
+                            std::cout << "This after-fsr b anti-quark is not coming from a W decay" << std::endl;
+#endif
+                            gen_bbar = i;
+                            continue;
+                        }
+#if TT_GEN_DEBUG
+                        else {
+                            std::cout << "This after-fsr b anti-quark comes from a W decay" << std::endl;
+                        }
+#endif
+                    } else {
+#if TT_GEN_DEBUG
+                        std::cout << "Assigning gen_bbar" << std::endl;
+#endif
+                        gen_bbar = i;
+                        continue;
+                    }
+                } else if (flags.isFirstCopy() && gen_bbar_beforeFSR == 0) {
+                    gen_bbar_beforeFSR = i;
+                    continue;
+                }
+            }
+
+            if ((gen_tbar == 0) || (gen_t == 0))
+                continue;
+
+            if (gen_t != 0 && from_t_decay) {
+#if TT_GEN_DEBUG
+            std::cout << "Coming from the top chain decay" << std::endl;
+#endif
+                if (a_pdg_id >= 1 && a_pdg_id <= 5) {
+                    ASSIGN_INDEX2(jet1_t, jet2_t, "Error: more than two quarks coming from top decay");
+                } else if (a_pdg_id == 11 || a_pdg_id == 13 || a_pdg_id == 15) {
+                    ASSIGN_INDEX(lepton_t);
+                } else if (a_pdg_id == 12 || a_pdg_id == 14 || a_pdg_id == 16) {
+                    ASSIGN_INDEX(neutrino_t);
+                } else {
+                    std::cout << "Error: unknown particle coming from top decay - #" << i << " ; PDG Id: " << pdg_id << std::endl;
+                }
+            } else if (gen_tbar != 0 && from_tbar_decay) {
+#if TT_GEN_DEBUG
+            std::cout << "Coming from the anti-top chain decay" << std::endl;
+#endif
+                if (a_pdg_id >= 1 && a_pdg_id <= 5) {
+                    ASSIGN_INDEX2(jet1_tbar, jet2_tbar, "Error: more than two quarks coming from anti-top decay");
+                } else if (a_pdg_id == 11 || a_pdg_id == 13 || a_pdg_id == 15) {
+                    ASSIGN_INDEX(lepton_tbar);
+                } else if (a_pdg_id == 12 || a_pdg_id == 14 || a_pdg_id == 16) {
+                    ASSIGN_INDEX(neutrino_tbar);
+                } else {
+                    std::cout << "Error: unknown particle coming from anti-top decay - #" << i << " ; PDG Id: " << pdg_id << std::endl;
+                }
+            }
+        }
+
+        if (!gen_t || !gen_tbar) {
+#if TT_GEN_DEBUG
+            std::cout << "This is not a ttbar event" << std::endl;
+#endif
+            gen_ttbar_decay_type = NotTT;
+            return;
+        }
+
+        if ((gen_jet1_t != 0) && (gen_jet2_t != 0) && (gen_jet1_tbar != 0) && (gen_jet2_tbar != 0)) {
+#if TT_GEN_DEBUG
+            std::cout << "Hadronic ttbar decay" << std::endl;
+#endif
+            gen_ttbar_decay_type = Hadronic;
+        } else if (
+                ((gen_lepton_t != 0) && (gen_lepton_tbar == 0)) ||
+                ((gen_lepton_t == 0) && (gen_lepton_tbar != 0))
+                ) {
+
+#if TT_GEN_DEBUG
+            std::cout << "Semileptonic ttbar decay" << std::endl;
+#endif
+
+            uint16_t lepton_pdg_id;
+            if (gen_lepton_t != 0)
+                lepton_pdg_id = std::abs(gp->pruned_pdg_id[gen_lepton_t]);
+            else
+                lepton_pdg_id = std::abs(gp->pruned_pdg_id[gen_lepton_tbar]);
+
+            if (lepton_pdg_id == 11)
+                gen_ttbar_decay_type = Semileptonic_e;
+            else if (lepton_pdg_id == 13)
+                gen_ttbar_decay_type = Semileptonic_mu;
+            else
+                gen_ttbar_decay_type = Semileptonic_tau;
+        } else if (gen_lepton_t != 0 && gen_lepton_tbar != 0) {
+            uint16_t lepton_t_pdg_id = std::abs(gp->pruned_pdg_id[gen_lepton_t]);
+            uint16_t lepton_tbar_pdg_id = std::abs(gp->pruned_pdg_id[gen_lepton_tbar]);
+
+#if TT_GEN_DEBUG
+            std::cout << "Dileptonic ttbar decay" << std::endl;
+#endif
+
+            if (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 11)
+                gen_ttbar_decay_type = Dileptonic_ee;
+            else if (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 13)
+                gen_ttbar_decay_type = Dileptonic_mumu;
+            else if (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 15)
+                gen_ttbar_decay_type = Dileptonic_tautau;
+            else if (
+                    (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 13) ||
+                    (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 11)
+                    ) {
+                gen_ttbar_decay_type = Dileptonic_mue;
+            }
+            else if (
+                    (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 15) ||
+                    (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 11)
+                    ) {
+                gen_ttbar_decay_type = Dileptonic_etau;
+            }
+            else if (
+                    (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 15) ||
+                    (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 13)
+                    ) {
+                gen_ttbar_decay_type = Dileptonic_mutau;
+            } else {
+                std::cout << "Error: unknown dileptonic ttbar decay." << std::endl;
+                gen_ttbar_decay_type = NotTT;
+                return;
+            }
+        } else {
+            std::cout << "Error: unknown ttbar decay." << std::endl;
+            gen_ttbar_decay_type = UnknownTT;
+        }
+        // Retrieve the 4-vector of the hard process particles for transfer function
+        if (gen_b_beforeFSR != 0)
+            gen_ttbar_b_beforeFSR_p4 = gp->pruned_p4[gen_b_beforeFSR];
+        if (gen_bbar_beforeFSR != 0)
+            gen_ttbar_bbar_beforeFSR_p4 = gp->pruned_p4[gen_bbar_beforeFSR]; 
+        if (gen_lepton_t_beforeFSR != 0)
+            gen_ttbar_lepton_t_beforeFSR_p4 = gp->pruned_p4[gen_lepton_t_beforeFSR];
+        if (gen_lepton_tbar_beforeFSR != 0)
+            gen_ttbar_lepton_tbar_beforeFSR_p4 = gp->pruned_p4[gen_lepton_tbar_beforeFSR];
+        } // end of if isMC
+
     //float mh = event.isRealData() ? 125.02 : 125.0;
     LorentzVector null_p4(0., 0., 0., 0.);
     const EventProducer& fwevent = producers.get<EventProducer>("event");
@@ -91,6 +439,17 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     // ********** 
     const ElectronsProducer& allelectrons = producers.get<ElectronsProducer>(m_electrons_producer);
     const MuonsProducer& allmuons = producers.get<MuonsProducer>(m_muons_producer);
+    float tt_genMatching_maxDR = 0.1;
+
+    nMuonsL = 0;
+    nMuonsT = 0;
+    nMuonsHWW = 0;
+    nElectronsL = 0;
+    nElectronsT = 0;
+    nElectronsHWW = 0;
+    nLeptonsL = 0;
+    nLeptonsT = 0;
+    nLeptonsHWW = 0;
 
     leptons.clear();
     ll.clear();
@@ -98,50 +457,88 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     // Electrons
     for (unsigned int ielectron = 0; ielectron < allelectrons.p4.size(); ielectron++)
     {
-        if ( !(allelectrons.p4[ielectron].Pt() > m_subleadingElectronPtCut
-            && fabs(allelectrons.p4[ielectron].Eta()) < m_electronEtaCut
-            && allelectrons.ids[ielectron][m_electron_tight_wp_name] 
-            && (allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight))))
-           continue; 
-        electrons.push_back(ielectron);
+        if ( !(allelectrons.p4[ielectron].Pt() > m_subleadingElectronPtCut && fabs(allelectrons.p4[ielectron].Eta()) < m_electronEtaCut) )
+           continue;
         HH::Lepton ele;
+        if (!hlt.paths.empty())
+           matchOfflineLepton(ele);
+        ele.id_L = allelectrons.ids[ielectron][m_electron_loose_wp_name];
+        ele.id_M = allelectrons.ids[ielectron][m_electron_medium_wp_name];
+        ele.id_T = allelectrons.ids[ielectron][m_electron_tight_wp_name];
+        if (allelectrons.isEB[ielectron])
+            ele.id_HWW = allelectrons.dz[ielectron] < 0.373 && allelectrons.dxy[ielectron] < 0.1;
+        else
+            ele.id_HWW = allelectrons.dz[ielectron] < 0.602 && allelectrons.dxy[ielectron] < 0.2;
+        ele.iso_L = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Loose) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Loose);
+        ele.iso_T = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight);
+        ele.iso_HWW = ele.iso_T && allelectrons.relEcalPFClusterIso[ielectron] < 0.45 && allelectrons.relHcalPFClusterIso[ielectron] < 0.25 && allelectrons.relTrackIso[ielectron] < 0.2;
+        if (ele.id_L && ele.iso_L){
+            nElectronsL++;
+            nLeptonsL++;
+        }
+        if (ele.id_T && ele.iso_T){
+            nElectronsT++;
+            nLeptonsT++;
+        }
+        if (ele.id_HWW && ele.iso_HWW){
+            nElectronsHWW++;
+            nLeptonsHWW++;
+        }
+        if (!(ele.iso_HWW && ele.id_HWW))
+            continue;
         ele.p4 = allelectrons.p4[ielectron];
         ele.charge = allelectrons.charge[ielectron];
         ele.idx = ielectron;
         ele.isMu = false;
         ele.isEl = true;
-        ele.id_L = allelectrons.ids[ielectron][m_electron_loose_wp_name];
-        ele.id_M = allelectrons.ids[ielectron][m_electron_medium_wp_name];
-        ele.id_T = allelectrons.ids[ielectron][m_electron_tight_wp_name];
-        ele.id_HWW = ele.id_T;
-        ele.iso_L = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Loose) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Loose);
-        ele.iso_T = allelectrons.isEB[ielectron] ? (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EB_Tight) : (allelectrons.relativeIsoR03_withEA[ielectron] < m_electronIsoCut_EE_Tight);
-        ele.iso_HWW = ele.iso_T; // FIXME
+        // GEN MATCHING
+        ele.tt_matched = false;
+        ele.tt_gen_p4 = null_p4;
+        ele.tt_gen_DR = std::numeric_limits<float>::max();
+        ele.tt_parton_p4 = null_p4;
+        ele.tt_parton_DR = std::numeric_limits<float>::max();
+        if (!event.isRealData() && gen_lepton_t != 0 && gen_lepton_t_beforeFSR != 0 && gen_neutrino_tbar !=0 && gen_lepton_tbar_beforeFSR != 0) {
+            float temp_DR_lep_t = std::numeric_limits<float>::max(); 
+            float temp_DR_lep_antit = std::numeric_limits<float>::max(); 
+            float DR_lepParton = std::numeric_limits<float>::max(); 
+            uint16_t parton_id = 0;
+            uint16_t parton_id_beforeFSR = 0;
+            bool goodID = false;
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_t]) == 11) { 
+                temp_DR_lep_t = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_t], ele.p4);
+                goodID = true;
+            }
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_tbar]) == 11) { 
+                temp_DR_lep_antit = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_tbar], ele.p4);
+                goodID = true;
+            }
+            if (goodID) {
+                parton_id = (temp_DR_lep_t < temp_DR_lep_antit) ? gen_lepton_t : gen_lepton_tbar;
+                DR_lepParton = (temp_DR_lep_t < temp_DR_lep_antit) ? temp_DR_lep_t : temp_DR_lep_antit;
+                parton_id_beforeFSR = (temp_DR_lep_t < temp_DR_lep_antit) ? gen_lepton_t_beforeFSR : gen_lepton_tbar_beforeFSR;
+                ele.tt_gen_DR = DR_lepParton;
+                ele.tt_gen_p4 = gp->pruned_p4[parton_id];
+                ele.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
+                ele.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], ele.p4);
+                if (ele.tt_gen_DR < tt_genMatching_maxDR)
+                    ele.tt_matched = true;
+            }
+        }
         ele.gen_matched = allelectrons.matched[ielectron];
         ele.gen_p4 = ele.gen_matched ? allelectrons.gen_p4[ielectron] : null_p4;
         ele.gen_DR = ele.gen_matched ? ROOT::Math::VectorUtil::DeltaR(ele.p4, ele.gen_p4): -1.;
         ele.gen_DPtOverPt = ele.gen_matched ? (ele.p4.Pt() - ele.gen_p4.Pt()) / ele.p4.Pt() : -10.;
-        if (!hlt.paths.empty())
-           matchOfflineLepton(ele); 
+        electrons.push_back(ielectron);
         leptons.push_back(ele);
     }//end of loop on electrons
+    nElectrons = electrons.size();
 
     // Muons
     for (unsigned int imuon = 0; imuon < allmuons.p4.size(); imuon++)
     {
-        if (!(allmuons.p4[imuon].Pt() > m_subleadingMuonPtCut
-            && fabs(allmuons.p4[imuon].Eta()) < m_muonEtaCut 
-            && allmuons.isMedium[imuon]
-            &&  (allmuons.p4[imuon].Pt() < 20. ? fabs(allmuons.dxy[imuon]) < 0.01 : fabs(allmuons.dxy[imuon]) < 0.02) 
-            && (fabs(allmuons.dz[imuon]) < 0.1)))
+        if (!(allmuons.p4[imuon].Pt() > m_subleadingMuonPtCut && fabs(allmuons.p4[imuon].Eta()) < m_muonEtaCut))
             continue;
-        muons.push_back(imuon);
         HH::Lepton mu;
-        mu.p4 = allmuons.p4[imuon];
-        mu.charge = allmuons.charge[imuon];
-        mu.idx = imuon;
-        mu.isMu = true;
-        mu.isEl = false;
         mu.id_L = allmuons.isLoose[imuon];
         mu.id_M = allmuons.isMedium[imuon];
         mu.id_T = allmuons.isTight[imuon];
@@ -149,16 +546,71 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         mu.iso_L = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonLooseIsoCut;
         mu.iso_T = allmuons.relativeIsoR04_deltaBeta[imuon] < m_muonTightIsoCut;
         mu.iso_HWW = mu.iso_T; // For the isolation use relative PF isolation (cone size = 0.4) with deltaBeta PU corrections (a.l.a. Run I) and WP < 0.15
-        mu.gen_matched = allmuons.matched[imuon];
-        mu.gen_p4 = mu.gen_matched ? allmuons.gen_p4[imuon] : null_p4;
-        mu.gen_DR = mu.gen_matched ? ROOT::Math::VectorUtil::DeltaR(mu.p4, mu.gen_p4) : -1.;
-        mu.gen_DPtOverPt = mu.gen_matched ? (mu.p4.Pt() - mu.gen_p4.Pt()) / mu.p4.Pt() : -10.;
+        if (mu.id_L && mu.iso_L){
+            nMuonsL++;
+            nLeptonsL++;
+        }
+        if (mu.id_T && mu.iso_T){
+            nMuonsT++;
+            nLeptonsT++;
+        }
+        if (mu.id_HWW && mu.iso_HWW){
+            nMuonsHWW++;
+            nLeptonsHWW++;
+        }
+        if (!(mu.iso_HWW && mu.id_HWW))
+            continue;
         if (!hlt.paths.empty())
            matchOfflineLepton(mu);
+        mu.p4 = allmuons.p4[imuon];
+        mu.charge = allmuons.charge[imuon];
+        mu.idx = imuon;
+        mu.isMu = true;
+        mu.isEl = false;
+        // GEN MATCHING
+        mu.tt_matched = false;
+        mu.tt_gen_p4 = null_p4;
+        mu.tt_gen_DR = std::numeric_limits<float>::max();
+        mu.tt_parton_p4 = null_p4;
+        mu.tt_parton_DR = std::numeric_limits<float>::max();
+        if (!event.isRealData() && gen_lepton_t != 0 && gen_lepton_t_beforeFSR != 0 && gen_neutrino_tbar !=0 && gen_lepton_tbar_beforeFSR != 0) {
+            float temp_DR_lep_t = std::numeric_limits<float>::max(); 
+            float temp_DR_lep_antit = std::numeric_limits<float>::max(); 
+            float DR_lepParton = std::numeric_limits<float>::max(); 
+            uint16_t parton_id = 0;
+            uint16_t parton_id_beforeFSR = 0;
+            bool goodID = false;
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_t]) == 13) { 
+                temp_DR_lep_t = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_t], mu.p4);
+                goodID = true;
+            }
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_tbar]) == 13) { 
+                temp_DR_lep_antit = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_tbar], mu.p4);
+                goodID = true;
+            }
+            if (goodID) {
+                parton_id = (temp_DR_lep_t < temp_DR_lep_antit) ? gen_lepton_t : gen_lepton_tbar;
+                DR_lepParton = (temp_DR_lep_t < temp_DR_lep_antit) ? temp_DR_lep_t : temp_DR_lep_antit;
+                parton_id_beforeFSR = (temp_DR_lep_t < temp_DR_lep_antit) ? gen_lepton_t_beforeFSR : gen_lepton_tbar_beforeFSR;
+                mu.tt_gen_DR = DR_lepParton;
+                mu.tt_gen_p4 = gp->pruned_p4[parton_id];
+                mu.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
+                mu.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], mu.p4);
+                if (mu.tt_gen_DR < tt_genMatching_maxDR)
+                    mu.tt_matched = true;
+            }
+        }
+        mu.gen_matched = allmuons.matched[imuon];
+        mu.gen_p4 = mu.gen_matched ? allmuons.gen_p4[imuon] : null_p4;
+        mu.gen_DR = mu.gen_matched ? ROOT::Math::VectorUtil::DeltaR(mu.p4, mu.gen_p4): -1.;
+        mu.gen_DPtOverPt = mu.gen_matched ? (mu.p4.Pt() - mu.gen_p4.Pt()) / mu.p4.Pt() : -10.;
+        muons.push_back(imuon);
         leptons.push_back(mu);
     }//end of loop on muons
     if (leptons.size() < 2)
         return;
+    nMuons = muons.size();
+    nLeptons = leptons.size();
 
     // sort leptons by pt (ignoring flavour, id and iso)
     std::sort(leptons.begin(), leptons.end(), [](const HH::Lepton& lep1, const HH::Lepton& lep2) { return lep1.p4.Pt() > lep2.p4.Pt(); });     
@@ -249,6 +701,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     }
     if (ll.size()<1)
         return;
+    std::sort(ll.begin(), ll.end(), [](const HH::Dilepton& ll1, const HH::Dilepton& ll2) { return ll1.ht_l_l > ll2.ht_l_l; });     
 
     // ***** 
     // Adding MET(s)
@@ -266,14 +719,13 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     mymet.gen_DPtOverPt = -10.;
     if (!event.isRealData())
     { // genMet is not constructed in the framework, so construct it manually out of the neutrinos hanging around the mc particles
-        const GenParticlesProducer& gp = producers.get<GenParticlesProducer>("gen_particles");
-        for (unsigned int ip = 0; ip < gp.pruned_p4.size(); ip++) {
-            std::bitset<15> flags (gp.pruned_status_flags[ip]);
+        for (unsigned int ip = 0; ip < gp->pruned_p4.size(); ip++) {
+            std::bitset<15> flags (gp->pruned_status_flags[ip]);
             if (!flags.test(13)) continue; // take the last copies
-            if (abs(gp.pruned_pdg_id[ip]) == 12 || abs(gp.pruned_pdg_id[ip]) == 14 || abs(gp.pruned_pdg_id[ip]) == 16)
+            if (abs(gp->pruned_pdg_id[ip]) == 12 || abs(gp->pruned_pdg_id[ip]) == 14 || abs(gp->pruned_pdg_id[ip]) == 16)
             {
                 mymet.gen_matched = true;
-                mymet.gen_p4 += gp.pruned_p4[ip];
+                mymet.gen_p4 += gp->pruned_p4[ip];
             }
         }
         mymet.gen_DR = mymet.gen_matched ? ROOT::Math::VectorUtil::DeltaR(mymet.p4, mymet.gen_p4) : -1.;
@@ -290,46 +742,45 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         for (unsigned int ill = 0; ill < ll.size(); ill++)
         {
             HH::DileptonMet myllmet;
-// DileptonMet inherits from Dilepton struct, initalize everything properly
-// FIXME: there is very probably a cleaner way to do
+            // DileptonMet inherits from Dilepton struct, initalize everything properly
             myllmet.p4 = ll[ill].p4 + met[imet].p4;
             // blind copy of the ll content
             myllmet.idxs = std::make_pair(ll[ill].idxs.first, ll[ill].idxs.second);
-            myllmet.ilep1 = ll[ill].ilep1;
-            myllmet.ilep2 = ll[ill].ilep2;
-            myllmet.isOS = ll[ill].isOS;
-            myllmet.isMuMu = ll[ill].isMuMu;
-            myllmet.isElEl = ll[ill].isElEl;
-            myllmet.isElMu = ll[ill].isElMu;
-            myllmet.isMuEl = ll[ill].isMuEl;
-            myllmet.isSF = ll[ill].isSF;
-            myllmet.id_LL = ll[ill].id_LL;
-            myllmet.id_LM = ll[ill].id_LM;
-            myllmet.id_LT = ll[ill].id_LT;
-            myllmet.id_LHWW = ll[ill].id_LHWW;
-            myllmet.id_ML = ll[ill].id_ML;
-            myllmet.id_MM = ll[ill].id_MM;
-            myllmet.id_MT = ll[ill].id_MT;
-            myllmet.id_MHWW = ll[ill].id_MHWW;
-            myllmet.id_TL = ll[ill].id_TL;
-            myllmet.id_TM = ll[ill].id_TM;
-            myllmet.id_TT = ll[ill].id_TT;
-            myllmet.id_THWW = ll[ill].id_THWW;
-            myllmet.id_HWWL = ll[ill].id_HWWL;
-            myllmet.id_HWWM = ll[ill].id_HWWM;
-            myllmet.id_HWWT = ll[ill].id_HWWT;
-            myllmet.id_HWWHWW = ll[ill].id_HWWHWW;
-            myllmet.iso_LL = ll[ill].iso_LL;
-            myllmet.iso_LT = ll[ill].iso_LT;
-            myllmet.iso_LHWW = ll[ill].iso_LHWW;
-            myllmet.iso_TL = ll[ill].iso_TL;
-            myllmet.iso_TT = ll[ill].iso_TT;
-            myllmet.iso_THWW = ll[ill].iso_THWW;
-            myllmet.iso_HWWL = ll[ill].iso_HWWL;
-            myllmet.iso_HWWT = ll[ill].iso_HWWT;
-            myllmet.iso_HWWHWW = ll[ill].iso_HWWHWW;
-            myllmet.DR_l_l = ll[ill].DR_l_l;
-            myllmet.DPhi_l_l = ll[ill].DPhi_l_l;
+            //myllmet.ilep1 = ll[ill].ilep1;
+            //myllmet.ilep2 = ll[ill].ilep2;
+            //myllmet.isOS = ll[ill].isOS;
+            //myllmet.isMuMu = ll[ill].isMuMu;
+            //myllmet.isElEl = ll[ill].isElEl;
+            //myllmet.isElMu = ll[ill].isElMu;
+            //myllmet.isMuEl = ll[ill].isMuEl;
+            //myllmet.isSF = ll[ill].isSF;
+            //myllmet.id_LL = ll[ill].id_LL;
+            //myllmet.id_LM = ll[ill].id_LM;
+            //myllmet.id_LT = ll[ill].id_LT;
+            //myllmet.id_LHWW = ll[ill].id_LHWW;
+            //myllmet.id_ML = ll[ill].id_ML;
+            //myllmet.id_MM = ll[ill].id_MM;
+            //myllmet.id_MT = ll[ill].id_MT;
+            //myllmet.id_MHWW = ll[ill].id_MHWW;
+            //myllmet.id_TL = ll[ill].id_TL;
+            //myllmet.id_TM = ll[ill].id_TM;
+            //myllmet.id_TT = ll[ill].id_TT;
+            //myllmet.id_THWW = ll[ill].id_THWW;
+            //myllmet.id_HWWL = ll[ill].id_HWWL;
+            //myllmet.id_HWWM = ll[ill].id_HWWM;
+            //myllmet.id_HWWT = ll[ill].id_HWWT;
+            //myllmet.id_HWWHWW = ll[ill].id_HWWHWW;
+            //myllmet.iso_LL = ll[ill].iso_LL;
+            //myllmet.iso_LT = ll[ill].iso_LT;
+            //myllmet.iso_LHWW = ll[ill].iso_LHWW;
+            //myllmet.iso_TL = ll[ill].iso_TL;
+            //myllmet.iso_TT = ll[ill].iso_TT;
+            //myllmet.iso_THWW = ll[ill].iso_THWW;
+            //myllmet.iso_HWWL = ll[ill].iso_HWWL;
+            //myllmet.iso_HWWT = ll[ill].iso_HWWT;
+            //myllmet.iso_HWWHWW = ll[ill].iso_HWWHWW;
+            //myllmet.DR_l_l = ll[ill].DR_l_l;
+            //myllmet.DPhi_l_l = ll[ill].DPhi_l_l;
             // content specific to HH:DileptonMet
             myllmet.ill = ill;
             myllmet.imet = imet;
@@ -357,9 +808,11 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     // ***** 
     const JetsProducer& alljets = producers.get<JetsProducer>(m_jets_producer);
     jets.clear();
-
-    int count = 0;
-    nJetsL_DRjl = 0;
+    nJetsL = 0;
+    nJetsT = 0;
+    nBJetsL = 0;
+    nBJetsM = 0;
+    nBJetsT = 0;
     for (unsigned int ijet = 0; ijet < alljets.p4.size(); ijet++)
     {
         float correctionFactor = m_applyBJetRegression ? alljets.regPt[ijet] / alljets.p4[ijet].Pt() : 1.;
@@ -398,8 +851,41 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         myjet.btag_L = mybtag > m_jet_bDiscrCut_loose;
         myjet.btag_M = mybtag > m_jet_bDiscrCut_medium;
         myjet.btag_T = mybtag > m_jet_bDiscrCut_tight;
-        myjet.gen_matched_bParton = (alljets.partonFlavor[ijet]) == 5;
-        myjet.gen_matched_bHadron = (alljets.hadronFlavor[ijet]) == 5;
+        // GEN MATCHING
+        myjet.tt_matched = false;
+        myjet.tt_gen_p4 = null_p4;
+        myjet.tt_gen_DR = std::numeric_limits<float>::max();
+        myjet.tt_parton_p4 = null_p4;
+        myjet.tt_parton_DR = std::numeric_limits<float>::max();
+        if (!event.isRealData() && gen_lepton_t != 0 && gen_lepton_t_beforeFSR != 0 && gen_neutrino_tbar !=0 && gen_lepton_tbar_beforeFSR != 0) {
+            float temp_DR_jet_t = std::numeric_limits<float>::max(); 
+            float temp_DR_jet_antit = std::numeric_limits<float>::max(); 
+            float DR_jetParton = std::numeric_limits<float>::max(); 
+            uint16_t parton_id = 0;
+            uint16_t parton_id_beforeFSR = 0;
+            bool goodID = false;
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_t]) == 13) { 
+                temp_DR_jet_t = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_t], myjet.p4);
+                goodID = true;
+            }
+            if (std::abs(gp->pruned_pdg_id[gen_lepton_tbar]) == 13) { 
+                temp_DR_jet_antit = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_tbar], myjet.p4);
+                goodID = true;
+            }
+            if (goodID) {
+                parton_id = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_lepton_t : gen_lepton_tbar;
+                DR_jetParton = (temp_DR_jet_t < temp_DR_jet_antit) ? temp_DR_jet_t : temp_DR_jet_antit;
+                parton_id_beforeFSR = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_lepton_t_beforeFSR : gen_lepton_tbar_beforeFSR;
+                myjet.tt_gen_DR = DR_jetParton;
+                myjet.tt_gen_p4 = gp->pruned_p4[parton_id];
+                myjet.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
+                myjet.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], myjet.p4);
+                if (myjet.tt_gen_DR < tt_genMatching_maxDR)
+                    myjet.tt_matched = true;
+            }
+        }
+        myjet.gen_matched_bParton = (std::abs(alljets.partonFlavor[ijet]) == 5);
+        myjet.gen_matched_bHadron = (std::abs(alljets.hadronFlavor[ijet]) == 5);
         myjet.gen_matched = alljets.matched[ijet];
         myjet.gen_p4 = myjet.gen_matched ? alljets.gen_p4[ijet] : null_p4;
         myjet.gen_DR = myjet.gen_matched ? ROOT::Math::VectorUtil::DeltaR(myjet.p4, myjet.gen_p4) : -1.;
@@ -407,14 +893,24 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         myjet.gen_b = (alljets.hadronFlavor[ijet]) == 5; // redundant with gen_matched_bHadron defined above
         myjet.gen_c = (alljets.hadronFlavor[ijet]) == 4;
         myjet.gen_l = (alljets.hadronFlavor[ijet]) < 4;
+        // counters
+        if (myjet.id_L)
+            nJetsL++;
+        if (myjet.id_T)
+            nJetsT++;
+        if (myjet.btag_L)
+            nBJetsL++;
+        if (myjet.btag_M)
+            nBJetsM++;
+        if (myjet.btag_T)
+            nBJetsT++;
         jets.push_back(myjet);
-        count++;
     }
-    if (jets.size() < 2)
+    nJets = jets.size();
+    if (nJets < 2)
         return;
 
     jj.clear();
-    count = 0;
 
     for (unsigned int ijet1 = 0; ijet1 < jets.size(); ijet1++)
     {
@@ -425,6 +921,13 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myjj.idxs = std::make_pair(jets[ijet1].idx, jets[ijet2].idx);
             myjj.ijet1 = ijet1;
             myjj.ijet2 = ijet2;
+            for (unsigned int ijet3 = 0; ijet3 < jets.size(); ijet3++) {
+                if (ijet3 != ijet1 && ijet3 != ijet2) {
+                    myjj.iExtraJets.push_back(ijet3);
+                    myjj.min_DR_j_extraj.push_back(std::min(ROOT::Math::VectorUtil::DeltaR(jets[ijet1].p4, jets[ijet3].p4), ROOT::Math::VectorUtil::DeltaR(jets[ijet2].p4, jets[ijet3].p4)));
+                    myjj.M_j_j_extraj.push_back((jets[ijet1].p4 + jets[ijet2].p4 + jets[ijet3].p4).M());
+                }
+            }
             myjj.btag_LL = jets[ijet1].btag_L && jets[ijet2].btag_L;
             myjj.btag_LM = (jets[ijet1].btag_L && jets[ijet2].btag_M) || (jets[ijet2].btag_L && jets[ijet1].btag_M);
             myjj.btag_LT = (jets[ijet1].btag_L && jets[ijet2].btag_T) || (jets[ijet2].btag_L && jets[ijet1].btag_T);
@@ -452,9 +955,10 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myjj.gen_cl = (jets[ijet1].gen_c && jets[ijet2].gen_l) || (jets[ijet1].gen_l && jets[ijet2].gen_c);
             myjj.gen_ll = (jets[ijet1].gen_l && jets[ijet2].gen_l);
             jj.push_back(myjj);
-            count++;
         }
     }
+    // Sort Dijet such as the jet are pt ordered
+    std::sort(jj.begin(), jj.end(), [](const HH::Dijet& jj1, const HH::Dijet& jj2) { return jj1.ht_j_j > jj2.ht_j_j; });     
 
     // ********** 
     // lljj, llbb, +pf_met
@@ -520,6 +1024,9 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myllmetjj.gen_cc = jj[ijj].gen_cc;
             myllmetjj.gen_cl = jj[ijj].gen_cl;
             myllmetjj.gen_ll = jj[ijj].gen_ll;
+            myllmetjj.iExtraJets = jj[ijj].iExtraJets;
+            myllmetjj.min_DR_j_extraj = jj[ijj].min_DR_j_extraj;
+            myllmetjj.M_j_j_extraj = jj[ijj].M_j_j_extraj;
             // blind copy of the llmet content
             myllmetjj.ilep1 = ll[ill].ilep1;
             myllmetjj.ilep2 = ll[ill].ilep2;
@@ -644,7 +1151,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             llmetjj_HWWleptons_btagT_pt.push_back(llmetjj_cand);
     }
 
-    std::sort(llmetjj.begin(), llmetjj.end(), [](const HH::DileptonMetDijet& llmetjj1, const HH::DileptonMetDijet& llmetjj2) { return llmetjj1.sumCSV > llmetjj1.sumCSV; });     
+    std::sort(llmetjj.begin(), llmetjj.end(), [](const HH::DileptonMetDijet& llmetjj1, const HH::DileptonMetDijet& llmetjj2) { return llmetjj1.sumCSV > llmetjj2.sumCSV; });     
     llmetjj_HWWleptons_nobtag_csv.clear();
     llmetjj_HWWleptons_btagL_csv.clear();
     llmetjj_HWWleptons_btagM_csv.clear();
@@ -665,72 +1172,6 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             llmetjj_HWWleptons_btagT_csv.push_back(llmetjj_cand);
     }
 
-    // ***** ***** *****
-    // Event variables
-    // ***** ***** *****
-    nJets = jets.size();
-    nJetsL = 0;
-    for (unsigned int ijet = 0; ijet < jets.size(); ijet++)
-        if (jets[ijet].id_L)
-            nJetsL++;
-    nJetsT = 0;
-    for (unsigned int ijet = 0; ijet < jets.size(); ijet++)
-        if (jets[ijet].id_T)
-            nJetsT++;
-
-    nBJetsL = 0;
-    nBJetsM = 0;
-    nBJetsT = 0;
-    for (unsigned int ijet = 0; ijet < jets.size(); ijet++)
-    {
-        if (!jets[ijet].id_L) continue;
-        if (jets[ijet].btag_L)
-            nBJetsL++;
-        if (jets[ijet].btag_M)
-            nBJetsM++;
-        if (jets[ijet].btag_T)
-            nBJetsT++;
-    }
-    nMuons = muons.size();
-    nMuonsL = 0;
-    nMuonsT = 0;
-    nMuonsHWW = 0;
-    nElectrons = electrons.size();
-    nElectronsL = 0;
-    nElectronsT = 0;
-    nElectronsHWW = 0;
-    nLeptons = leptons.size();
-    nLeptonsL = 0;
-    nLeptonsT = 0;
-    nLeptonsHWW = 0;
-    for (unsigned int ilepton = 0; ilepton < leptons.size(); ilepton++)
-    {
-        if (leptons[ilepton].id_L && leptons[ilepton].iso_L)
-        {
-            nLeptonsL++;
-            if (leptons[ilepton].isMu)
-                nMuonsL++;
-            if (leptons[ilepton].isEl)
-                nElectronsL++;
-        }
-        if (leptons[ilepton].id_T && leptons[ilepton].iso_T)
-        {
-            nLeptonsT++;
-            if (leptons[ilepton].isMu)
-                nMuonsT++;
-            if (leptons[ilepton].isEl)
-                nElectronsT++;
-        }
-        if (leptons[ilepton].id_HWW && leptons[ilepton].iso_HWW)
-        {
-            nLeptonsHWW++;
-            if (leptons[ilepton].isMu)
-                nMuonsHWW++;
-            if (leptons[ilepton].isEl)
-                nElectronsHWW++;
-        }
-    }
-
     count_has2leptons += tmp_count_has2leptons;
     count_has2leptons_elel += tmp_count_has2leptons_elel;
     count_has2leptons_elmu += tmp_count_has2leptons_elmu;
@@ -746,560 +1187,6 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     count_has2leptons_elmu_1llmetjj_2btagM += tmp_count_has2leptons_elmu_1llmetjj_2btagM;
     count_has2leptons_muel_1llmetjj_2btagM += tmp_count_has2leptons_muel_1llmetjj_2btagM;
     count_has2leptons_mumu_1llmetjj_2btagM += tmp_count_has2leptons_mumu_1llmetjj_2btagM;
-
-
-    if (!event.isRealData())
-    {
-// ***** ***** *****
-// Get the MC truth information on the hard process
-// ***** ***** *****
-// from https://github.com/cms-sw/cmssw/blob/CMSSW_7_4_X/DataFormats/HepMCCandidate/interface/GenStatusFlags.h
-//    enum StatusBits {
-//0      kIsPrompt = 0,
-//1      kIsDecayedLeptonHadron,
-//2      kIsTauDecayProduct,
-//3      kIsPromptTauDecayProduct,
-//4      kIsDirectTauDecayProduct,
-//5      kIsDirectPromptTauDecayProduct,
-//6      kIsDirectHadronDecayProduct,
-//7      kIsHardProcess,
-//8      kFromHardProcess,
-//9      kIsHardProcessTauDecayProduct,
-//10      kIsDirectHardProcessTauDecayProduct,
-//11      kFromHardProcessBeforeFSR,
-//12      kIsFirstCopy,
-//13      kIsLastCopy,
-//14      kIsLastCopyBeforeFSR
-//    };
-
-        const GenParticlesProducer& gp = producers.get<GenParticlesProducer>("gen_particles");
-
-#if HH_GEN_DEBUG
-    std::function<void(size_t)> print_mother_chain = [&gp, &print_mother_chain](size_t p) {
-
-        if (gp.pruned_mothers_index[p].empty()) {
-            std::cout << std::endl;
-            return;
-        }
-
-        size_t index = gp.pruned_mothers_index[p][0];
-            std::cout << " <- #" << index << "(" << gp.pruned_pdg_id[index] << ")";
-            print_mother_chain(index);
-    };
-#endif
-
-        std::function<bool(size_t, size_t)> pruned_decays_from = [&pruned_decays_from, &gp](size_t particle_index, size_t mother_index) -> bool {
-            // Iterator over all pruned particles to find if the particle `particle_index` has `mother_index` in its decay history
-            if (gp.pruned_mothers_index[particle_index].empty())
-                return false;
-
-            size_t index = gp.pruned_mothers_index[particle_index][0];
-
-            if (index == mother_index) {
-                return true;
-            }
-
-            if (pruned_decays_from(index, mother_index))
-                return true;
-
-            return false;
-        };
-
-        std::function<bool(size_t, size_t)> pruned_decays_from_pdg_id = [&pruned_decays_from_pdg_id, &gp](size_t particle_index, uint64_t pdg_id) -> bool {
-            // Iterator over all pruned particles to find if the particle `particle_index` decays from a particle with pdg id == pdg_id
-            if (gp.pruned_mothers_index[particle_index].empty())
-                return false;
-
-            size_t index = gp.pruned_mothers_index[particle_index][0];
-
-            if (std::abs(gp.pruned_pdg_id[index]) == pdg_id) {
-                return true;
-            }
-
-            if (pruned_decays_from_pdg_id(index, pdg_id))
-                return true;
-
-            return false;
-        };
-
-        // Construct signal gen info
-
-        gen_iX = -1;
-        gen_iH1 = gen_iH2 = -1;
-        gen_iH1_afterFSR = gen_iH2_afterFSR = -1;
-        gen_iB = gen_iBbar = -1;
-        gen_iB_afterFSR = gen_iBbar_afterFSR = -1;
-        gen_iV2 = gen_iV1 = -1;
-        gen_iV2_afterFSR = gen_iV1_afterFSR = -1;
-        gen_iLminus = gen_iLplus = -1;
-        gen_iLminus_afterFSR = gen_iLplus_afterFSR = -1;
-        gen_iNu1 = gen_iNu2 = -1;
-
-        for (unsigned int ip = 0; ip < gp.pruned_p4.size(); ip++) {
-            std::bitset<15> flags (gp.pruned_status_flags[ip]);
-
-            if (!flags.test(8))
-                continue;
-
-            int64_t pdg_id = gp.pruned_pdg_id[ip];
-
-#if HH_GEN_DEBUG
-            std::cout << "[" << ip << "] pdg id: " << pdg_id << "  flags: " << flags << "  p = " << gp.pruned_p4[ip] << std::endl;
-            print_mother_chain(ip);
-#endif
-
-            auto p4 = gp.pruned_p4[ip];
-
-            if (std::abs(pdg_id) == 35 || std::abs(pdg_id) == 39) {
-                ASSIGN_HH_GEN_INFO_NO_FSR(X, "X");
-            } else if (pdg_id == 25) {
-                ASSIGN_HH_GEN_INFO_2(H1, H2, "Higgs");
-            }
-
-            // Only look for Higgs decays if we have found the two Higgs
-            if ((gen_iH1 == -1) || (gen_iH2 == -1))
-                continue;
-
-            // And if the particle actually come directly from a Higgs
-            bool from_h1_decay = pruned_decays_from(ip, gen_iH1);
-            bool from_h2_decay = pruned_decays_from(ip, gen_iH2);
-
-            // Only keep particles coming from the tops decay
-            if (! from_h1_decay && ! from_h2_decay)
-                continue;
-
-            if (pdg_id == 5) {
-                ASSIGN_HH_GEN_INFO(B, "B");
-            } else if (pdg_id == -5) {
-                ASSIGN_HH_GEN_INFO(Bbar, "Bbar");
-            }
-
-            // Ignore B decays
-            if (pruned_decays_from_pdg_id(ip, 5))
-                continue;
-
-            if ((pdg_id == 11) || (pdg_id == 13) || (pdg_id == 15)) {
-                ASSIGN_HH_GEN_INFO(Lminus, "L-");
-            } else if ((pdg_id == -11) || (pdg_id == -13) || (pdg_id == -15)) {
-                ASSIGN_HH_GEN_INFO(Lplus, "L+");
-            } else if ((pdg_id == 23) || (std::abs(pdg_id) == 24)) {
-                ASSIGN_HH_GEN_INFO_2(V1, V2, "W/Z bosons");
-            } else if ((std::abs(pdg_id) == 12) || (std::abs(pdg_id) == 14) || (std::abs(pdg_id) == 16)) {
-                ASSIGN_HH_GEN_INFO_2_NO_FSR(Nu1, Nu2, "neutrinos");
-            }
-        }
-
-        // Swap neutrinos if needed
-        if ((gen_iNu1 != -1) && (gen_iNu2 != -1)) {
-            if (gp.pruned_pdg_id[gen_iNu1] > 0) {
-                std::swap(gen_iNu1, gen_iNu2);
-                std::swap(gen_Nu1, gen_Nu2);
-            }
-        }
-
-        if ((gen_iH1 != -1) && (gen_iH2 != -1)) {
-            gen_mHH = (gen_H1 + gen_H2).M();
-            gen_costhetastar = getCosThetaStar_CS(gen_H1, gen_H2);
-        }
-
-#if HH_GEN_DEBUG
-        PRINT_PARTICULE(X);
-        PRINT_RESONANCE(H1, H2);
-        PRINT_RESONANCE(B, Bbar);
-        PRINT_RESONANCE(V1, V2);
-        PRINT_RESONANCE(Lminus, Lplus);
-        PRINT_RESONANCE_NO_FSR(Nu1, Nu2);
-
-        // Rebuild resonances for consistency checks
-        auto LminusNu1 = gen_Lminus + gen_Nu1;
-        std::cout << "    gen_(L- Nu1).M() = " << LminusNu1.M() << std::endl;
-
-        auto LplusNu2 = gen_Lplus + gen_Nu2;
-        std::cout << "    gen_(L+ Nu2).M() = " << LplusNu2.M() << std::endl;
-
-        auto LminusNu1_afterFSR = gen_Lminus_afterFSR + gen_Nu1;
-        std::cout << "    gen_(L- Nu1)_afterFSR.M() = " << LminusNu1_afterFSR.M() << std::endl;
-
-        auto LplusNu2_afterFSR = gen_Lplus_afterFSR + gen_Nu2;
-        std::cout << "    gen_(L+ Nu2)_afterFSR.M() = " << LplusNu2_afterFSR.M() << std::endl;
-        
-        auto LLNuNu = gen_Lplus + gen_Lminus + gen_Nu1 + gen_Nu2;
-        std::cout << "    gen_(LL NuNu).M() = " << LLNuNu.M() << std::endl;
-
-        auto LLNuNu_afterFSR = gen_Lplus_afterFSR + gen_Lminus_afterFSR + gen_Nu1 + gen_Nu2;
-        std::cout << "    gen_(LL NuNu)_afterFSR.M() = " << LLNuNu_afterFSR.M() << std::endl;
-
-        auto LLNuNuBB = gen_Lplus + gen_Lminus + gen_Nu1 + gen_Nu2 + gen_B + gen_Bbar;
-        std::cout << "    gen_(LL NuNu BB).M() = " << LLNuNuBB.M() << std::endl;
-
-        auto LLNuNuBB_afterFSR = gen_Lplus_afterFSR + gen_Lminus_afterFSR + gen_Nu1 + gen_Nu2 + gen_B_afterFSR + gen_Bbar_afterFSR;
-        std::cout << "    gen_(LL NuNu BB)_afterFSR.M() = " << LLNuNuBB_afterFSR.M() << std::endl;
-#endif
-
-        // ***** ***** *****
-        // Matching
-        // ***** ***** *****
-        BRANCH(gen_deltaR_jet_B, std::vector<float>);    
-        BRANCH(gen_deltaR_jet_Bbar, std::vector<float>);    
-        BRANCH(gen_deltaR_jet_B_afterFSR, std::vector<float>);    
-        BRANCH(gen_deltaR_jet_Bbar_afterFSR, std::vector<float>);    
-        BRANCH(gen_deltaR_electron_L1, std::vector<float>);    
-        BRANCH(gen_deltaR_electron_L2, std::vector<float>);    
-        BRANCH(gen_deltaR_electron_L1_afterFSR, std::vector<float>);    
-        BRANCH(gen_deltaR_electron_L2_afterFSR, std::vector<float>);    
-        BRANCH(gen_deltaR_muon_L1, std::vector<float>);    
-        BRANCH(gen_deltaR_muon_L2, std::vector<float>);    
-        BRANCH(gen_deltaR_muon_L1_afterFSR, std::vector<float>);    
-        BRANCH(gen_deltaR_muon_L2_afterFSR, std::vector<float>);    
-    
-        for (auto p4: alljets.gen_p4) {
-            gen_deltaR_jet_B.push_back(deltaR(p4, gen_B));
-            gen_deltaR_jet_Bbar.push_back(deltaR(p4, gen_Bbar));
-            gen_deltaR_jet_B_afterFSR.push_back(deltaR(p4, gen_B_afterFSR));
-            gen_deltaR_jet_Bbar_afterFSR.push_back(deltaR(p4, gen_Bbar_afterFSR));
-        }
-        for (auto p4: allelectrons.gen_p4) {
-            gen_deltaR_electron_L1.push_back(deltaR(p4, gen_Lminus));
-            gen_deltaR_electron_L2.push_back(deltaR(p4, gen_Lplus));
-            gen_deltaR_electron_L1_afterFSR.push_back(deltaR(p4, gen_Lminus_afterFSR));
-            gen_deltaR_electron_L2_afterFSR.push_back(deltaR(p4, gen_Lplus_afterFSR));
-        }
-        for (auto p4: allmuons.gen_p4) {
-            gen_deltaR_muon_L1.push_back(deltaR(p4, gen_Lminus));
-            gen_deltaR_muon_L2.push_back(deltaR(p4, gen_Lplus));
-            gen_deltaR_muon_L1_afterFSR.push_back(deltaR(p4, gen_Lminus_afterFSR));
-            gen_deltaR_muon_L2_afterFSR.push_back(deltaR(p4, gen_Lplus_afterFSR));
-        }
-
-    // TTBAR MC TRUTH
-    const GenParticlesProducer& gen_particles = gp;
-
-    // 'Pruned' particles are from the hard process
-    // 'Packed' particles are stable particles
-
-#if TT_GEN_DEBUG
-    std::function<void(size_t)> print_mother_chain = [&gen_particles, &print_mother_chain](size_t p) {
-
-        if (gen_particles.pruned_mothers_index[p].empty()) {
-            std::cout << std::endl;
-            return;
-        }
-
-        size_t index = gen_particles.pruned_mothers_index[p][0];
-            std::cout << " <- #" << index << "(" << gen_particles.pruned_pdg_id[index] << ")";
-            print_mother_chain(index);
-    };
-#endif
-
-#define ASSIGN_INDEX( X ) \
-    if (flags.isLastCopy()) { \
-        gen_##X = i; \
-    }\
-    if (flags.isFirstCopy()) { \
-        gen_##X##_beforeFSR = i; \
-    }
-
-// Assign index to X if it's empty, or Y if not
-#define ASSIGN_INDEX2(X, Y, ERROR) \
-    if (flags.isLastCopy()) { \
-        if (gen_##X == 0) \
-            gen_##X = i; \
-        else if (gen_##Y == 0)\
-            gen_##Y = i; \
-        else \
-            std::cout << ERROR << std::endl; \
-    } \
-    if (flags.isFirstCopy()) { \
-        if (gen_##X##_beforeFSR == 0) \
-            gen_##X##_beforeFSR = i; \
-        else if (gen_##Y##_beforeFSR == 0)\
-            gen_##Y##_beforeFSR = i; \
-        else \
-            std::cout << ERROR << std::endl; \
-    }
-
-    gen_t = 0; // Index of the top quark
-    gen_t_beforeFSR = 0; // Index of the top quark, before any FSR
-    gen_tbar = 0; // Index of the anti-top quark
-    gen_tbar_beforeFSR = 0; // Index of the anti-top quark, before any FSR
-
-    gen_b = 0; // Index of the b quark coming from the top decay
-    gen_b_beforeFSR = 0; // Index of the b quark coming from the top decay, before any FSR
-    gen_bbar = 0; // Index of the anti-b quark coming from the anti-top decay
-    gen_bbar_beforeFSR = 0; // Index of the anti-b quark coming from the anti-top decay, before any FSR
-
-    gen_jet1_t = 0; // Index of the first jet from the top decay chain
-    gen_jet1_t_beforeFSR = 0; // Index of the first jet from the top decay chain, before any FSR
-    gen_jet2_t = 0; // Index of the second jet from the top decay chain
-    gen_jet2_t_beforeFSR = 0; // Index of the second jet from the top decay chain, before any FSR
-
-    gen_jet1_tbar = 0; // Index of the first jet from the anti-top decay chain
-    gen_jet1_tbar_beforeFSR = 0; // Index of the first jet from the anti-top decay chain, before any FSR
-    gen_jet2_tbar = 0; // Index of the second jet from the anti-top decay chain
-    gen_jet2_tbar_beforeFSR = 0; // Index of the second jet from the anti-top decay chain, before any FSR
-
-    gen_lepton_t = 0; // Index of the lepton from the top decay chain
-    gen_lepton_t_beforeFSR = 0; // Index of the lepton from the top decay chain, before any FSR
-    gen_neutrino_t = 0; // Index of the neutrino from the top decay chain
-    gen_neutrino_t_beforeFSR = 0; // Index of the neutrino from the top decay chain, before any FSR
-
-    gen_lepton_tbar = 0; // Index of the lepton from the anti-top decay chain
-    gen_lepton_tbar_beforeFSR = 0; // Index of the lepton from the anti-top decay chain, before any FSR
-    gen_neutrino_tbar = 0; // Index of the neutrino from the anti-top decay chain
-    gen_neutrino_tbar_beforeFSR = 0; // Index of the neutrino from the anti-top decay chain, before any FSR
-    for (size_t i = 0; i < gen_particles.pruned_pdg_id.size(); i++) {
-
-        int16_t pdg_id = gen_particles.pruned_pdg_id[i];
-        uint16_t a_pdg_id = std::abs(pdg_id);
-
-        // We only care of particles with PDG id <= 16 (16 is neutrino tau)
-        if (a_pdg_id > 16)
-            continue;
-
-        GenStatusFlags flags(gen_particles.pruned_status_flags[i]);
-
-        if (! flags.isLastCopy() && ! flags.isFirstCopy())
-            continue;
-
-        if (! flags.fromHardProcess())
-            continue;
-
-#if TT_GEN_DEBUG
-        std::cout << "---" << std::endl;
-        std::cout << "Gen particle #" << i << ": PDG id: " << gen_particles.pruned_pdg_id[i];
-        print_mother_chain(i);
-        flags.dump();
-#endif
-
-        if (pdg_id == 6) {
-            ASSIGN_INDEX(t);
-            continue;
-        } else if (pdg_id == -6) {
-            ASSIGN_INDEX(tbar);
-            continue;
-        }
-
-        if (gen_t == 0 || gen_tbar == 0) {
-            // Don't bother if we don't have found the tops
-            continue;
-        }
-
-        bool from_t_decay = pruned_decays_from(i, gen_t);
-        bool from_tbar_decay = pruned_decays_from(i, gen_tbar);
-
-        // Only keep particles coming from the tops decay
-        if (! from_t_decay && ! from_tbar_decay)
-            continue;
-
-        if (pdg_id == 5) {
-            // Maybe it's a b coming from the W decay
-            if (!flags.isFirstCopy() && flags.isLastCopy() && gen_b == 0) {
-
-                // This can be a B decaying from a W
-                // However, we can't rely on the presence of the W in the decay chain, as it may be generator specific
-                // Since it's the last copy (ie, after FSR), we can check if this B comes from the B assigned to the W decay (ie, gen_jet1_t_beforeFSR, gen_jet2_t_beforeFSR)
-                // If yes, then it's not the B coming directly from the top decay
-                if ((gen_jet1_t_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet1_t_beforeFSR]) == 5) ||
-                    (gen_jet2_t_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet2_t_beforeFSR]) == 5) ||
-                    (gen_jet1_tbar_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet1_tbar_beforeFSR]) == 5) ||
-                    (gen_jet2_tbar_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet2_tbar_beforeFSR]) == 5)) {
-
-#if TT_GEN_DEBUG
-                    std::cout << "A quark coming from W decay is a b" << std::endl;
-#endif
-
-                    if (! (gen_jet1_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_tbar_beforeFSR)) &&
-                        ! (gen_jet2_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_tbar_beforeFSR)) &&
-                        ! (gen_jet1_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_t_beforeFSR)) &&
-                        ! (gen_jet2_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_t_beforeFSR))) {
-#if TT_GEN_DEBUG
-                        std::cout << "This after-FSR b quark is not coming from a W decay" << std::endl;
-#endif
-                        gen_b = i;
-                        continue;
-                    }
-#if TT_GEN_DEBUG
-                    else {
-                        std::cout << "This after-FSR b quark comes from a W decay" << std::endl;
-                    }
-#endif
-                } else {
-#if TT_GEN_DEBUG
-                    std::cout << "Assigning gen_b" << std::endl;
-#endif
-                    gen_b = i;
-                    continue;
-                }
-            } else if (flags.isFirstCopy() && gen_b_beforeFSR == 0) {
-                gen_b_beforeFSR = i;
-                continue;
-            } else {
-#if TT_GEN_DEBUG
-                std::cout << "This should not happen!" << std::endl;
-#endif
-            }
-        } else if (pdg_id == -5) {
-            if (!flags.isFirstCopy() && flags.isLastCopy() && gen_bbar == 0) {
-
-                // This can be a B decaying from a W
-                // However, we can't rely on the presence of the W in the decay chain, as it may be generator specific
-                // Since it's the last copy (ie, after FSR), we can check if this B comes from the B assigned to the W decay (ie, gen_jet1_t_beforeFSR, gen_jet2_t_beforeFSR)
-                // If yes, then it's not the B coming directly from the top decay
-                if ((gen_jet1_t_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet1_t_beforeFSR]) == 5) ||
-                    (gen_jet2_t_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet2_t_beforeFSR]) == 5) ||
-                    (gen_jet1_tbar_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet1_tbar_beforeFSR]) == 5) ||
-                    (gen_jet2_tbar_beforeFSR != 0 && std::abs(gen_particles.pruned_pdg_id[gen_jet2_tbar_beforeFSR]) == 5)) {
-
-#if TT_GEN_DEBUG
-                    std::cout << "A quark coming from W decay is a bbar" << std::endl;
-#endif
-
-                    if (! (gen_jet1_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_tbar_beforeFSR)) &&
-                        ! (gen_jet2_tbar_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_tbar_beforeFSR)) &&
-                        ! (gen_jet1_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet1_t_beforeFSR)) &&
-                        ! (gen_jet2_t_beforeFSR != 0 && pruned_decays_from(i, gen_jet2_t_beforeFSR))) {
-#if TT_GEN_DEBUG
-                        std::cout << "This after-fsr b anti-quark is not coming from a W decay" << std::endl;
-#endif
-                        gen_bbar = i;
-                        continue;
-                    }
-#if TT_GEN_DEBUG
-                    else {
-                        std::cout << "This after-fsr b anti-quark comes from a W decay" << std::endl;
-                    }
-#endif
-                } else {
-#if TT_GEN_DEBUG
-                    std::cout << "Assigning gen_bbar" << std::endl;
-#endif
-                    gen_bbar = i;
-                    continue;
-                }
-            } else if (flags.isFirstCopy() && gen_bbar_beforeFSR == 0) {
-                gen_bbar_beforeFSR = i;
-                continue;
-            }
-        }
-
-        if ((gen_tbar == 0) || (gen_t == 0))
-            continue;
-
-        if (gen_t != 0 && from_t_decay) {
-#if TT_GEN_DEBUG
-        std::cout << "Coming from the top chain decay" << std::endl;
-#endif
-            if (a_pdg_id >= 1 && a_pdg_id <= 5) {
-                ASSIGN_INDEX2(jet1_t, jet2_t, "Error: more than two quarks coming from top decay");
-            } else if (a_pdg_id == 11 || a_pdg_id == 13 || a_pdg_id == 15) {
-                ASSIGN_INDEX(lepton_t);
-            } else if (a_pdg_id == 12 || a_pdg_id == 14 || a_pdg_id == 16) {
-                ASSIGN_INDEX(neutrino_t);
-            } else {
-                std::cout << "Error: unknown particle coming from top decay - #" << i << " ; PDG Id: " << pdg_id << std::endl;
-            }
-        } else if (gen_tbar != 0 && from_tbar_decay) {
-#if TT_GEN_DEBUG
-        std::cout << "Coming from the anti-top chain decay" << std::endl;
-#endif
-            if (a_pdg_id >= 1 && a_pdg_id <= 5) {
-                ASSIGN_INDEX2(jet1_tbar, jet2_tbar, "Error: more than two quarks coming from anti-top decay");
-            } else if (a_pdg_id == 11 || a_pdg_id == 13 || a_pdg_id == 15) {
-                ASSIGN_INDEX(lepton_tbar);
-            } else if (a_pdg_id == 12 || a_pdg_id == 14 || a_pdg_id == 16) {
-                ASSIGN_INDEX(neutrino_tbar);
-            } else {
-                std::cout << "Error: unknown particle coming from anti-top decay - #" << i << " ; PDG Id: " << pdg_id << std::endl;
-            }
-        }
-    }
-
-    if (!gen_t || !gen_tbar) {
-#if TT_GEN_DEBUG
-        std::cout << "This is not a ttbar event" << std::endl;
-#endif
-        gen_ttbar_decay_type = NotTT;
-        return;
-    }
-
-    if ((gen_jet1_t != 0) && (gen_jet2_t != 0) && (gen_jet1_tbar != 0) && (gen_jet2_tbar != 0)) {
-#if TT_GEN_DEBUG
-        std::cout << "Hadronic ttbar decay" << std::endl;
-#endif
-        gen_ttbar_decay_type = Hadronic;
-    } else if (
-            ((gen_lepton_t != 0) && (gen_lepton_tbar == 0)) ||
-            ((gen_lepton_t == 0) && (gen_lepton_tbar != 0))
-            ) {
-
-#if TT_GEN_DEBUG
-        std::cout << "Semileptonic ttbar decay" << std::endl;
-#endif
-
-        uint16_t lepton_pdg_id;
-        if (gen_lepton_t != 0)
-            lepton_pdg_id = std::abs(gen_particles.pruned_pdg_id[gen_lepton_t]);
-        else
-            lepton_pdg_id = std::abs(gen_particles.pruned_pdg_id[gen_lepton_tbar]);
-
-        if (lepton_pdg_id == 11)
-            gen_ttbar_decay_type = Semileptonic_e;
-        else if (lepton_pdg_id == 13)
-            gen_ttbar_decay_type = Semileptonic_mu;
-        else
-            gen_ttbar_decay_type = Semileptonic_tau;
-    } else if (gen_lepton_t != 0 && gen_lepton_tbar != 0) {
-        uint16_t lepton_t_pdg_id = std::abs(gen_particles.pruned_pdg_id[gen_lepton_t]);
-        uint16_t lepton_tbar_pdg_id = std::abs(gen_particles.pruned_pdg_id[gen_lepton_tbar]);
-
-#if TT_GEN_DEBUG
-        std::cout << "Dileptonic ttbar decay" << std::endl;
-#endif
-
-        if (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 11)
-            gen_ttbar_decay_type = Dileptonic_ee;
-        else if (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 13)
-            gen_ttbar_decay_type = Dileptonic_mumu;
-        else if (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 15)
-            gen_ttbar_decay_type = Dileptonic_tautau;
-        else if (
-                (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 13) ||
-                (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 11)
-                ) {
-            gen_ttbar_decay_type = Dileptonic_mue;
-        }
-        else if (
-                (lepton_t_pdg_id == 11 && lepton_tbar_pdg_id == 15) ||
-                (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 11)
-                ) {
-            gen_ttbar_decay_type = Dileptonic_etau;
-        }
-        else if (
-                (lepton_t_pdg_id == 13 && lepton_tbar_pdg_id == 15) ||
-                (lepton_t_pdg_id == 15 && lepton_tbar_pdg_id == 13)
-                ) {
-            gen_ttbar_decay_type = Dileptonic_mutau;
-        } else {
-            std::cout << "Error: unknown dileptonic ttbar decay." << std::endl;
-            gen_ttbar_decay_type = NotTT;
-            return;
-        }
-    } else {
-        std::cout << "Error: unknown ttbar decay." << std::endl;
-        gen_ttbar_decay_type = UnknownTT;
-    }
-    // Retrieve the 4-vector of the hard process particles for transfer function
-    if (gen_b_beforeFSR != 0)
-        gen_ttbar_b_beforeFSR_p4 = gp.pruned_p4[gen_b_beforeFSR];
-    if (gen_bbar_beforeFSR != 0)
-        gen_ttbar_bbar_beforeFSR_p4 = gp.pruned_p4[gen_bbar_beforeFSR]; 
-    if (gen_lepton_t_beforeFSR != 0)
-        gen_ttbar_lepton_t_beforeFSR_p4 = gp.pruned_p4[gen_lepton_t_beforeFSR];
-    if (gen_lepton_tbar_beforeFSR != 0)
-        gen_ttbar_lepton_tbar_beforeFSR_p4 = gp.pruned_p4[gen_lepton_tbar_beforeFSR];
-
-    } // end of if !event.isRealData()
-
 }
 
 float HHAnalyzer::getCosThetaStar_CS(const LorentzVector & h1, const LorentzVector & h2, float ebeam /*= 6500*/)
