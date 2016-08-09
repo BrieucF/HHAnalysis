@@ -69,10 +69,6 @@ class HHAnalyzer: public Framework::Analyzer {
         BRANCH(leptons, std::vector<HH::Lepton>);
         BRANCH(met, std::vector<HH::Met>);
         BRANCH(jets, std::vector<HH::Jet>);
-        BRANCH(lightjetsM, std::vector<HH::Jet>);
-        BRANCH(bjetsL, std::vector<HH::Jet>);
-        BRANCH(bjetsM, std::vector<HH::Jet>);
-        BRANCH(bjetsT, std::vector<HH::Jet>);
         std::vector<HH::Dilepton> ll;
         std::vector<HH::DileptonMet> llmet;
         std::vector<HH::Dijet> jj;

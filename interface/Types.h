@@ -125,6 +125,7 @@ namespace HH {
         bool gen_c;
         bool gen_l;
         LorentzVector gen_p4;
+
         bool tt_matched;
         LorentzVector tt_gen_p4;
         float tt_gen_DR;

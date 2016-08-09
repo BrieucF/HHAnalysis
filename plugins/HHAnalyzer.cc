@@ -439,7 +439,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     // ********** 
     const ElectronsProducer& allelectrons = producers.get<ElectronsProducer>(m_electrons_producer);
     const MuonsProducer& allmuons = producers.get<MuonsProducer>(m_muons_producer);
-    float tt_genMatching_maxDR = 0.1;
+    float tt_genLepMatching_maxDR = 0.1;
+    float tt_genJetMatching_maxDR = 0.2;
 
     nMuonsL = 0;
     nMuonsT = 0;
@@ -520,7 +521,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
                 ele.tt_gen_p4 = gp->pruned_p4[parton_id];
                 ele.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
                 ele.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], ele.p4);
-                if (ele.tt_gen_DR < tt_genMatching_maxDR)
+                if (ele.tt_gen_DR < tt_genLepMatching_maxDR)
                     ele.tt_matched = true;
             }
         }
@@ -596,7 +597,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
                 mu.tt_gen_p4 = gp->pruned_p4[parton_id];
                 mu.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
                 mu.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], mu.p4);
-                if (mu.tt_gen_DR < tt_genMatching_maxDR)
+                if (mu.tt_gen_DR < tt_genLepMatching_maxDR)
                     mu.tt_matched = true;
             }
         }
@@ -746,41 +747,41 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             myllmet.p4 = ll[ill].p4 + met[imet].p4;
             // blind copy of the ll content
             myllmet.idxs = std::make_pair(ll[ill].idxs.first, ll[ill].idxs.second);
-            //myllmet.ilep1 = ll[ill].ilep1;
-            //myllmet.ilep2 = ll[ill].ilep2;
-            //myllmet.isOS = ll[ill].isOS;
-            //myllmet.isMuMu = ll[ill].isMuMu;
-            //myllmet.isElEl = ll[ill].isElEl;
-            //myllmet.isElMu = ll[ill].isElMu;
-            //myllmet.isMuEl = ll[ill].isMuEl;
-            //myllmet.isSF = ll[ill].isSF;
-            //myllmet.id_LL = ll[ill].id_LL;
-            //myllmet.id_LM = ll[ill].id_LM;
-            //myllmet.id_LT = ll[ill].id_LT;
-            //myllmet.id_LHWW = ll[ill].id_LHWW;
-            //myllmet.id_ML = ll[ill].id_ML;
-            //myllmet.id_MM = ll[ill].id_MM;
-            //myllmet.id_MT = ll[ill].id_MT;
-            //myllmet.id_MHWW = ll[ill].id_MHWW;
-            //myllmet.id_TL = ll[ill].id_TL;
-            //myllmet.id_TM = ll[ill].id_TM;
-            //myllmet.id_TT = ll[ill].id_TT;
-            //myllmet.id_THWW = ll[ill].id_THWW;
-            //myllmet.id_HWWL = ll[ill].id_HWWL;
-            //myllmet.id_HWWM = ll[ill].id_HWWM;
-            //myllmet.id_HWWT = ll[ill].id_HWWT;
-            //myllmet.id_HWWHWW = ll[ill].id_HWWHWW;
-            //myllmet.iso_LL = ll[ill].iso_LL;
-            //myllmet.iso_LT = ll[ill].iso_LT;
-            //myllmet.iso_LHWW = ll[ill].iso_LHWW;
-            //myllmet.iso_TL = ll[ill].iso_TL;
-            //myllmet.iso_TT = ll[ill].iso_TT;
-            //myllmet.iso_THWW = ll[ill].iso_THWW;
-            //myllmet.iso_HWWL = ll[ill].iso_HWWL;
-            //myllmet.iso_HWWT = ll[ill].iso_HWWT;
-            //myllmet.iso_HWWHWW = ll[ill].iso_HWWHWW;
-            //myllmet.DR_l_l = ll[ill].DR_l_l;
-            //myllmet.DPhi_l_l = ll[ill].DPhi_l_l;
+            myllmet.ilep1 = ll[ill].ilep1;
+            myllmet.ilep2 = ll[ill].ilep2;
+            myllmet.isOS = ll[ill].isOS;
+            myllmet.isMuMu = ll[ill].isMuMu;
+            myllmet.isElEl = ll[ill].isElEl;
+            myllmet.isElMu = ll[ill].isElMu;
+            myllmet.isMuEl = ll[ill].isMuEl;
+            myllmet.isSF = ll[ill].isSF;
+            myllmet.id_LL = ll[ill].id_LL;
+            myllmet.id_LM = ll[ill].id_LM;
+            myllmet.id_LT = ll[ill].id_LT;
+            myllmet.id_LHWW = ll[ill].id_LHWW;
+            myllmet.id_ML = ll[ill].id_ML;
+            myllmet.id_MM = ll[ill].id_MM;
+            myllmet.id_MT = ll[ill].id_MT;
+            myllmet.id_MHWW = ll[ill].id_MHWW;
+            myllmet.id_TL = ll[ill].id_TL;
+            myllmet.id_TM = ll[ill].id_TM;
+            myllmet.id_TT = ll[ill].id_TT;
+            myllmet.id_THWW = ll[ill].id_THWW;
+            myllmet.id_HWWL = ll[ill].id_HWWL;
+            myllmet.id_HWWM = ll[ill].id_HWWM;
+            myllmet.id_HWWT = ll[ill].id_HWWT;
+            myllmet.id_HWWHWW = ll[ill].id_HWWHWW;
+            myllmet.iso_LL = ll[ill].iso_LL;
+            myllmet.iso_LT = ll[ill].iso_LT;
+            myllmet.iso_LHWW = ll[ill].iso_LHWW;
+            myllmet.iso_TL = ll[ill].iso_TL;
+            myllmet.iso_TT = ll[ill].iso_TT;
+            myllmet.iso_THWW = ll[ill].iso_THWW;
+            myllmet.iso_HWWL = ll[ill].iso_HWWL;
+            myllmet.iso_HWWT = ll[ill].iso_HWWT;
+            myllmet.iso_HWWHWW = ll[ill].iso_HWWHWW;
+            myllmet.DR_l_l = ll[ill].DR_l_l;
+            myllmet.DPhi_l_l = ll[ill].DPhi_l_l;
             // content specific to HH:DileptonMet
             myllmet.ill = ill;
             myllmet.imet = imet;
@@ -857,30 +858,30 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         myjet.tt_gen_DR = std::numeric_limits<float>::max();
         myjet.tt_parton_p4 = null_p4;
         myjet.tt_parton_DR = std::numeric_limits<float>::max();
-        if (!event.isRealData() && gen_lepton_t != 0 && gen_lepton_t_beforeFSR != 0 && gen_neutrino_tbar !=0 && gen_lepton_tbar_beforeFSR != 0) {
+        if (!event.isRealData() && gen_b_beforeFSR != 0 && gen_bbar_beforeFSR != 0 && gen_b !=0 && gen_bbar != 0) {
             float temp_DR_jet_t = std::numeric_limits<float>::max(); 
             float temp_DR_jet_antit = std::numeric_limits<float>::max(); 
             float DR_jetParton = std::numeric_limits<float>::max(); 
             uint16_t parton_id = 0;
             uint16_t parton_id_beforeFSR = 0;
             bool goodID = false;
-            if (std::abs(gp->pruned_pdg_id[gen_lepton_t]) == 13) { 
-                temp_DR_jet_t = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_t], myjet.p4);
+            if (gp->pruned_pdg_id[gen_b] == 5) { // should be useless check
+                temp_DR_jet_t = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_b], myjet.p4);
                 goodID = true;
             }
-            if (std::abs(gp->pruned_pdg_id[gen_lepton_tbar]) == 13) { 
-                temp_DR_jet_antit = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_lepton_tbar], myjet.p4);
+            if (gp->pruned_pdg_id[gen_bbar] == -5) { 
+                temp_DR_jet_antit = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[gen_bbar], myjet.p4);
                 goodID = true;
             }
             if (goodID) {
-                parton_id = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_lepton_t : gen_lepton_tbar;
+                parton_id = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_b : gen_bbar;
                 DR_jetParton = (temp_DR_jet_t < temp_DR_jet_antit) ? temp_DR_jet_t : temp_DR_jet_antit;
-                parton_id_beforeFSR = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_lepton_t_beforeFSR : gen_lepton_tbar_beforeFSR;
+                parton_id_beforeFSR = (temp_DR_jet_t < temp_DR_jet_antit) ? gen_b_beforeFSR : gen_bbar_beforeFSR;
                 myjet.tt_gen_DR = DR_jetParton;
                 myjet.tt_gen_p4 = gp->pruned_p4[parton_id];
                 myjet.tt_parton_p4 = gp->pruned_p4[parton_id_beforeFSR];
                 myjet.tt_parton_DR = ROOT::Math::VectorUtil::DeltaR(gp->pruned_p4[parton_id_beforeFSR], myjet.p4);
-                if (myjet.tt_gen_DR < tt_genMatching_maxDR)
+                if (myjet.tt_gen_DR < tt_genJetMatching_maxDR)
                     myjet.tt_matched = true;
             }
         }
@@ -890,9 +891,9 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         myjet.gen_p4 = myjet.gen_matched ? alljets.gen_p4[ijet] : null_p4;
         myjet.gen_DR = myjet.gen_matched ? ROOT::Math::VectorUtil::DeltaR(myjet.p4, myjet.gen_p4) : -1.;
         myjet.gen_DPtOverPt = myjet.gen_matched ? (myjet.p4.Pt() - myjet.gen_p4.Pt()) / myjet.p4.Pt() : -10.;
-        myjet.gen_b = (alljets.hadronFlavor[ijet]) == 5; // redundant with gen_matched_bHadron defined above
-        myjet.gen_c = (alljets.hadronFlavor[ijet]) == 4;
-        myjet.gen_l = (alljets.hadronFlavor[ijet]) < 4;
+        myjet.gen_b = (std::abs(alljets.hadronFlavor[ijet]) == 5); // redundant with gen_matched_bHadron defined above
+        myjet.gen_c = (std::abs(alljets.hadronFlavor[ijet]) == 4);
+        myjet.gen_l = (std::abs(alljets.hadronFlavor[ijet]) < 4);
         // counters
         if (myjet.id_L)
             nJetsL++;

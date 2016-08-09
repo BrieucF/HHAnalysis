@@ -5,7 +5,7 @@ from Configuration.StandardSequences.Eras import eras
 from cp3_llbb.Framework import Framework
 from cp3_llbb.Framework import METProducer
 
-runOnData = False
+runOnData = True
 
 globalTag_ = '76X_mcRun2_asymptotic_RunIIFall15DR76_v1'
 processName_ = 'PAT'
@@ -92,4 +92,4 @@ else :
         '/store/mc/RunIIFall15MiniAODv2/TTTo2L2Nu_13TeV-powheg/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/50FF8034-BEB9-E511-A09C-001EC9ADDD58.root'
         )
 
-process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(1000))
+process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))
