@@ -417,9 +417,14 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         for (size_t hlt_object = 0; hlt_object < hlt.object_p4.size(); hlt_object++) {
 
             float dr = ROOT::Math::VectorUtil::DeltaR(lepton.p4, hlt.object_p4[hlt_object]);
-            float dpt_over_pt = fabs(lepton.p4.Pt() - hlt.object_p4[hlt_object].Pt()) / lepton.p4.Pt();
+            std::cout << "Dr " << hlt_object << " : " << dr << std::endl;
+            float dpt_over_pt = std::abs(lepton.p4.Pt() - hlt.object_p4[hlt_object].Pt()) / lepton.p4.Pt();
+            std::cout << "Dptoverpt " << hlt_object << " : " << dpt_over_pt << std::endl;
+            std::cout << "lepton.p4.Pt() " << hlt_object << " : " << lepton.p4.Pt() << std::endl;
+            std::cout << " hlt.object_p4[hlt_object].Pt() " << hlt_object << " : " <<  hlt.object_p4[hlt_object].Pt() << std::endl;
 
-            if (dr < min_dr) {
+            if (dr < min_dr && dpt_over_pt < final_dpt_over_pt) {
+                std::cout << "True" << std::endl;
                 min_dr = dr;
                 final_dpt_over_pt = dpt_over_pt;
                 if (dr < m_hltDRCut && dpt_over_pt < m_hltDPtCut)
@@ -461,8 +466,6 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         if ( !(allelectrons.p4[ielectron].Pt() > m_subleadingElectronPtCut && fabs(allelectrons.p4[ielectron].Eta()) < m_electronEtaCut) )
            continue;
         HH::Lepton ele;
-        if (!hlt.paths.empty())
-           matchOfflineLepton(ele);
         ele.id_L = allelectrons.ids[ielectron][m_electron_loose_wp_name];
         ele.id_M = allelectrons.ids[ielectron][m_electron_medium_wp_name];
         ele.id_T = allelectrons.ids[ielectron][m_electron_tight_wp_name];
@@ -488,6 +491,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         if (!(ele.iso_HWW && ele.id_HWW))
             continue;
         ele.p4 = allelectrons.p4[ielectron];
+        if (!hlt.paths.empty())
+           matchOfflineLepton(ele);
         ele.charge = allelectrons.charge[ielectron];
         ele.idx = ielectron;
         ele.isMu = false;
@@ -561,9 +566,9 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         }
         if (!(mu.iso_HWW && mu.id_HWW))
             continue;
+        mu.p4 = allmuons.p4[imuon];
         if (!hlt.paths.empty())
            matchOfflineLepton(mu);
-        mu.p4 = allmuons.p4[imuon];
         mu.charge = allmuons.charge[imuon];
         mu.idx = imuon;
         mu.isMu = true;
@@ -621,13 +626,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     {
         if ((leptons[ilep1].isMu && leptons[ilep1].p4.Pt() < m_leadingMuonPtCut) || (leptons[ilep1].isEl && leptons[ilep1].p4.Pt() < m_leadingElectronPtCut)) 
             continue;
-        if (event.isRealData() && !(leptons[ilep1].hlt_DR_matchedObject < m_hltDRCut))
-            continue;
-
         for (unsigned int ilep2 = ilep1+1; ilep2 < leptons.size(); ilep2++)
         {
-            if (event.isRealData() && !(leptons[ilep2].hlt_DR_matchedObject < m_hltDRCut))
-                continue;
             HH::Dilepton dilep;
             dilep.p4 = leptons[ilep1].p4 + leptons[ilep2].p4;
             dilep.idxs = std::make_pair(leptons[ilep1].idx, leptons[ilep2].idx);
@@ -1138,17 +1138,17 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     llmetjj_HWWleptons_btagMT_pt.clear();
     llmetjj_HWWleptons_btagML_pt.clear();
     llmetjj_HWWleptons_btagT_pt.clear();
+    llmetjj_HWWleptons_nobtag_pt.push_back(llmetjj.at(0));
     for (auto llmetjj_cand : llmetjj){
-        llmetjj_HWWleptons_nobtag_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_LL)
+        if (llmetjj_cand.btag_LL && llmetjj_HWWleptons_btagL_pt.size()==0)
             llmetjj_HWWleptons_btagL_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_MM)
+        if (llmetjj_cand.btag_MM && llmetjj_HWWleptons_btagM_pt.size()==0)
             llmetjj_HWWleptons_btagM_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_ML || llmetjj_cand.btag_LM)
+        if ((llmetjj_cand.btag_ML || llmetjj_cand.btag_LM) && llmetjj_HWWleptons_btagML_pt.size()==0)
             llmetjj_HWWleptons_btagML_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_MT || llmetjj_cand.btag_TM)
+        if ((llmetjj_cand.btag_MT || llmetjj_cand.btag_TM) && llmetjj_HWWleptons_btagMT_pt.size()==0)
             llmetjj_HWWleptons_btagMT_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_TT)
+        if (llmetjj_cand.btag_TT && llmetjj_HWWleptons_btagT_pt.size()==0)
             llmetjj_HWWleptons_btagT_pt.push_back(llmetjj_cand);
     }
 
@@ -1159,17 +1159,17 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     llmetjj_HWWleptons_btagMT_csv.clear();
     llmetjj_HWWleptons_btagML_csv.clear();
     llmetjj_HWWleptons_btagT_csv.clear();
+    llmetjj_HWWleptons_nobtag_csv.push_back(llmetjj.at(0));
     for (auto llmetjj_cand : llmetjj){
-        llmetjj_HWWleptons_nobtag_csv.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_LL)
+        if (llmetjj_cand.btag_LL && llmetjj_HWWleptons_btagL_csv.size()==0)
             llmetjj_HWWleptons_btagL_csv.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_MM)
+        if (llmetjj_cand.btag_MM && llmetjj_HWWleptons_btagM_csv.size()==0)
             llmetjj_HWWleptons_btagM_csv.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_ML || llmetjj_cand.btag_LM)
+        if ((llmetjj_cand.btag_ML || llmetjj_cand.btag_LM) && llmetjj_HWWleptons_btagML_pt.size()==0)
             llmetjj_HWWleptons_btagML_csv.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_MT || llmetjj_cand.btag_TM)
+        if ((llmetjj_cand.btag_MT || llmetjj_cand.btag_TM) && llmetjj_HWWleptons_btagMT_pt.size()==0)
             llmetjj_HWWleptons_btagMT_csv.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_TT)
+        if (llmetjj_cand.btag_TT && llmetjj_HWWleptons_btagT_pt.size()==0)
             llmetjj_HWWleptons_btagT_csv.push_back(llmetjj_cand);
     }
 

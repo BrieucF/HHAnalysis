@@ -5,7 +5,7 @@ from Configuration.StandardSequences.Eras import eras
 from cp3_llbb.Framework import Framework
 from cp3_llbb.Framework import METProducer
 
-runOnData = True
+runOnData = False
 
 globalTag_ = '76X_mcRun2_asymptotic_RunIIFall15DR76_v1'
 processName_ = 'PAT'
@@ -84,7 +84,7 @@ process = framework.create()
 
 if runOnData : 
     process.source.fileNames = cms.untracked.vstring(
-        '/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/00039A2E-D7A7-E511-98EE-3417EBE64696.root'
+        '/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/60000/F8804BA6-90B3-E511-BE7C-00259059391E.root'
         #'/store/data/Run2015D/DoubleEG/MINIAOD/16Dec2015-v2/00000/000298CD-87A6-E511-9E56-002590593878.root'
         )
 else : 
