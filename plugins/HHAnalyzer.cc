@@ -417,14 +417,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         for (size_t hlt_object = 0; hlt_object < hlt.object_p4.size(); hlt_object++) {
 
             float dr = ROOT::Math::VectorUtil::DeltaR(lepton.p4, hlt.object_p4[hlt_object]);
-            std::cout << "Dr " << hlt_object << " : " << dr << std::endl;
             float dpt_over_pt = std::abs(lepton.p4.Pt() - hlt.object_p4[hlt_object].Pt()) / lepton.p4.Pt();
-            std::cout << "Dptoverpt " << hlt_object << " : " << dpt_over_pt << std::endl;
-            std::cout << "lepton.p4.Pt() " << hlt_object << " : " << lepton.p4.Pt() << std::endl;
-            std::cout << " hlt.object_p4[hlt_object].Pt() " << hlt_object << " : " <<  hlt.object_p4[hlt_object].Pt() << std::endl;
-
             if (dr < min_dr && dpt_over_pt < final_dpt_over_pt) {
-                std::cout << "True" << std::endl;
                 min_dr = dr;
                 final_dpt_over_pt = dpt_over_pt;
                 if (dr < m_hltDRCut && dpt_over_pt < m_hltDPtCut)
@@ -1132,26 +1126,33 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         return;
 
     // Different llmetjj candidate
+    // PT ORDERED asking the first two jets to be b-tagged
     llmetjj_HWWleptons_nobtag_pt.clear();
     llmetjj_HWWleptons_btagL_pt.clear();
     llmetjj_HWWleptons_btagM_pt.clear();
     llmetjj_HWWleptons_btagMT_pt.clear();
     llmetjj_HWWleptons_btagML_pt.clear();
     llmetjj_HWWleptons_btagT_pt.clear();
-    llmetjj_HWWleptons_nobtag_pt.push_back(llmetjj.at(0));
-    for (auto llmetjj_cand : llmetjj){
-        if (llmetjj_cand.btag_LL && llmetjj_HWWleptons_btagL_pt.size()==0)
-            llmetjj_HWWleptons_btagL_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_MM && llmetjj_HWWleptons_btagM_pt.size()==0)
-            llmetjj_HWWleptons_btagM_pt.push_back(llmetjj_cand);
-        if ((llmetjj_cand.btag_ML || llmetjj_cand.btag_LM) && llmetjj_HWWleptons_btagML_pt.size()==0)
-            llmetjj_HWWleptons_btagML_pt.push_back(llmetjj_cand);
-        if ((llmetjj_cand.btag_MT || llmetjj_cand.btag_TM) && llmetjj_HWWleptons_btagMT_pt.size()==0)
-            llmetjj_HWWleptons_btagMT_pt.push_back(llmetjj_cand);
-        if (llmetjj_cand.btag_TT && llmetjj_HWWleptons_btagT_pt.size()==0)
-            llmetjj_HWWleptons_btagT_pt.push_back(llmetjj_cand);
+
+    auto llmetjj_cand = llmetjj.at(0);
+    llmetjj_HWWleptons_nobtag_pt.push_back(llmetjj_cand);
+    if (llmetjj_cand.btag_LL)
+        llmetjj_HWWleptons_btagL_pt.push_back(llmetjj_cand);
+    if (llmetjj_cand.btag_MM)
+        llmetjj_HWWleptons_btagM_pt.push_back(llmetjj_cand);
+    if (llmetjj_cand.btag_ML || llmetjj_cand.btag_LM)
+        llmetjj_HWWleptons_btagML_pt.push_back(llmetjj_cand);
+    if (llmetjj_cand.btag_MT || llmetjj_cand.btag_TM)
+        llmetjj_HWWleptons_btagMT_pt.push_back(llmetjj_cand);
+    if (llmetjj_cand.btag_TT)
+        llmetjj_HWWleptons_btagT_pt.push_back(llmetjj_cand);
+    // PT ORDERED asking at least two jets to be b-tagged
+    for (auto llmetjj_cand_incl : llmetjj){
+        if (llmetjj_cand_incl.btag_MM && llmetjj_HWWleptons_btagM_pt_inclusive.size() == 0)
+            llmetjj_HWWleptons_btagM_pt_inclusive.push_back(llmetjj_cand_incl);
     }
 
+    // CSV ORDERED
     std::sort(llmetjj.begin(), llmetjj.end(), [](const HH::DileptonMetDijet& llmetjj1, const HH::DileptonMetDijet& llmetjj2) { return llmetjj1.sumCSV > llmetjj2.sumCSV; });     
     llmetjj_HWWleptons_nobtag_csv.clear();
     llmetjj_HWWleptons_btagL_csv.clear();
@@ -1159,6 +1160,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
     llmetjj_HWWleptons_btagMT_csv.clear();
     llmetjj_HWWleptons_btagML_csv.clear();
     llmetjj_HWWleptons_btagT_csv.clear();
+
     llmetjj_HWWleptons_nobtag_csv.push_back(llmetjj.at(0));
     for (auto llmetjj_cand : llmetjj){
         if (llmetjj_cand.btag_LL && llmetjj_HWWleptons_btagL_csv.size()==0)

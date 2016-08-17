@@ -78,6 +78,7 @@ class HHAnalyzer: public Framework::Analyzer {
         BRANCH(llmetjj_HWWleptons_btagL_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagL_csv, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagM_pt, std::vector<HH::DileptonMetDijet>);
+        BRANCH(llmetjj_HWWleptons_btagM_pt_inclusive, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagM_csv, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagML_pt, std::vector<HH::DileptonMetDijet>);
         BRANCH(llmetjj_HWWleptons_btagML_csv, std::vector<HH::DileptonMetDijet>);
