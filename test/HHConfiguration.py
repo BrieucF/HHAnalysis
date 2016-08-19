@@ -84,12 +84,14 @@ process = framework.create()
 
 if runOnData : 
     process.source.fileNames = cms.untracked.vstring(
-        '/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/60000/F8804BA6-90B3-E511-BE7C-00259059391E.root'
-        #'/store/data/Run2015D/DoubleEG/MINIAOD/16Dec2015-v2/00000/000298CD-87A6-E511-9E56-002590593878.root'
+        #'/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/60000/F8804BA6-90B3-E511-BE7C-00259059391E.root'
+        '/store/data/Run2015D/DoubleEG/MINIAOD/16Dec2015-v2/00000/000298CD-87A6-E511-9E56-002590593878.root'
         )
 else : 
     process.source.fileNames = cms.untracked.vstring(
-        '/store/mc/RunIIFall15MiniAODv2/TTTo2L2Nu_13TeV-powheg/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/50FF8034-BEB9-E511-A09C-001EC9ADDD58.root'
+        #'/store/mc/RunIIFall15MiniAODv2/GluGluToRadionToHHTo2B2VTo2L2Nu_M-650_narrow_13TeV-madgraph/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/70000/04A9FE44-8FBB-E511-A360-E03F49D6226B.root'
+        '/store/mc/RunIIFall15MiniAODv2/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/70000/002ABFCA-A0B9-E511-B9BA-0CC47A57CD6A.root'
+        #'/store/mc/RunIIFall15MiniAODv2/TTTo2L2Nu_13TeV-powheg/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/50FF8034-BEB9-E511-A09C-001EC9ADDD58.root'
         )
 
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))

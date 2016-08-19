@@ -298,8 +298,8 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             std::cout << "This is not a ttbar event" << std::endl;
 #endif
             gen_ttbar_decay_type = NotTT;
-            return;
         }
+        if (gen_ttbar_decay_type != NotTT) {
 
         if ((gen_jet1_t != 0) && (gen_jet2_t != 0) && (gen_jet1_tbar != 0) && (gen_jet2_tbar != 0)) {
 #if TT_GEN_DEBUG
@@ -361,7 +361,6 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             } else {
                 std::cout << "Error: unknown dileptonic ttbar decay." << std::endl;
                 gen_ttbar_decay_type = NotTT;
-                return;
             }
         } else {
             std::cout << "Error: unknown ttbar decay." << std::endl;
@@ -376,6 +375,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             gen_ttbar_lepton_t_beforeFSR_p4 = gp->pruned_p4[gen_lepton_t_beforeFSR];
         if (gen_lepton_tbar_beforeFSR != 0)
             gen_ttbar_lepton_tbar_beforeFSR_p4 = gp->pruned_p4[gen_lepton_tbar_beforeFSR];
+        }
         } // end of if isMC
 
     //float mh = event.isRealData() ? 125.02 : 125.0;
@@ -431,7 +431,6 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         lepton.hlt_DPtOverPt_matchedObject = final_dpt_over_pt;
         return index;
     };
-
 
     // ********** 
     // Leptons and dileptons
@@ -607,6 +606,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         muons.push_back(imuon);
         leptons.push_back(mu);
     }//end of loop on muons
+
     if (leptons.size() < 2)
         return;
     nMuons = muons.size();
@@ -694,6 +694,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
             ll.push_back(dilep); 
         }
     }
+
     if (ll.size()<1)
         return;
     std::sort(ll.begin(), ll.end(), [](const HH::Dilepton& ll1, const HH::Dilepton& ll2) { return ll1.ht_l_l > ll2.ht_l_l; });     
@@ -902,6 +903,7 @@ void HHAnalyzer::analyze(const edm::Event& event, const edm::EventSetup&, const 
         jets.push_back(myjet);
     }
     nJets = jets.size();
+
     if (nJets < 2)
         return;
 
