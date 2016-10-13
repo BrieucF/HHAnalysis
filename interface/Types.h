@@ -4,17 +4,17 @@
 #include <Math/Vector4D.h>
 #include <cp3_llbb/HHAnalysis/interface/Indices.h>
 
-typedef ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiE4D<float>> LorentzVector;
+typedef ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiE4D<float>> LorentzVectorPtEtaPhiE;
 
 namespace HH {
     struct Lepton {
-        LorentzVector p4;
+        LorentzVectorPtEtaPhiE p4;
 
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE gen_p4;
         bool tt_matched;
-        LorentzVector tt_gen_p4;
+        LorentzVectorPtEtaPhiE tt_gen_p4;
         float tt_gen_DR;
-        LorentzVector tt_parton_p4;
+        LorentzVectorPtEtaPhiE tt_parton_p4;
         float tt_parton_DR;
         bool gen_matched;
         float gen_DR;
@@ -39,8 +39,8 @@ namespace HH {
         bool iso_HWW;
     };
     struct Dilepton {
-        LorentzVector p4;
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE p4;
+        LorentzVectorPtEtaPhiE gen_p4;
         std::pair<int, int> idxs; // indices in the corresponding framework collection
         int ilep1; // index in the HH::Lepton collection
         int ilep2; // index in the HH::Lepton collection
@@ -89,8 +89,8 @@ namespace HH {
         float trigger_efficiency_upVariated_Arun;
     };
     struct Met {
-        LorentzVector p4;
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE p4;
+        LorentzVectorPtEtaPhiE gen_p4;
         bool isNoHF;
         bool gen_matched;
         float gen_DR;
@@ -98,8 +98,8 @@ namespace HH {
         float gen_DPtOverPt;
     };
     struct DileptonMet : public Dilepton, public Met {
-        LorentzVector p4;
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE p4;
+        LorentzVectorPtEtaPhiE gen_p4;
         int ill; // index in the HH::Dilepton collection
         int imet; // index in the HH::Met collection
         float DPhi_ll_met;
@@ -114,7 +114,7 @@ namespace HH {
         float gen_DPtOverPt;
     };
     struct Jet {
-        LorentzVector p4;
+        LorentzVectorPtEtaPhiE p4;
 
         bool gen_matched_bParton;
         bool gen_matched_bHadron;
@@ -124,12 +124,12 @@ namespace HH {
         bool gen_b;
         bool gen_c;
         bool gen_l;
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE gen_p4;
 
         bool tt_matched;
-        LorentzVector tt_gen_p4;
+        LorentzVectorPtEtaPhiE tt_gen_p4;
         float tt_gen_DR;
-        LorentzVector tt_parton_p4;
+        LorentzVectorPtEtaPhiE tt_parton_p4;
         float tt_parton_DR;
 
         int8_t charge;
@@ -146,8 +146,8 @@ namespace HH {
         float minDR_jet_allLeptons;
     };
     struct Dijet {
-        LorentzVector p4;
-        LorentzVector gen_p4;
+        LorentzVectorPtEtaPhiE p4;
+        LorentzVectorPtEtaPhiE gen_p4;
         std::pair<int, int> idxs; // indices in the framework collection
         int ijet1; // indices in the HH::Jet collection
         int ijet2;
@@ -181,24 +181,24 @@ namespace HH {
         bool gen_ll;
     };
     struct DileptonMetDijet : public DileptonMet, public Dijet {
-        LorentzVector p4;
-        LorentzVector lep1_p4;
-        LorentzVector lep2_p4;
-        LorentzVector jet1_p4;
-        LorentzVector jet2_p4;
-        LorentzVector met_p4;
-        LorentzVector ll_p4;
-        LorentzVector jj_p4;
-        LorentzVector lljj_p4;
-        LorentzVector gen_p4;
-        LorentzVector gen_lep1_p4;
-        LorentzVector gen_lep2_p4;
-        LorentzVector gen_jet1_p4;
-        LorentzVector gen_jet2_p4;
-        LorentzVector gen_met_p4;
-        LorentzVector gen_ll_p4;
-        LorentzVector gen_jj_p4;
-        LorentzVector gen_lljj_p4;
+        LorentzVectorPtEtaPhiE p4;
+        LorentzVectorPtEtaPhiE lep1_p4;
+        LorentzVectorPtEtaPhiE lep2_p4;
+        LorentzVectorPtEtaPhiE jet1_p4;
+        LorentzVectorPtEtaPhiE jet2_p4;
+        LorentzVectorPtEtaPhiE met_p4;
+        LorentzVectorPtEtaPhiE ll_p4;
+        LorentzVectorPtEtaPhiE jj_p4;
+        LorentzVectorPtEtaPhiE lljj_p4;
+        LorentzVectorPtEtaPhiE gen_p4;
+        LorentzVectorPtEtaPhiE gen_lep1_p4;
+        LorentzVectorPtEtaPhiE gen_lep2_p4;
+        LorentzVectorPtEtaPhiE gen_jet1_p4;
+        LorentzVectorPtEtaPhiE gen_jet2_p4;
+        LorentzVectorPtEtaPhiE gen_met_p4;
+        LorentzVectorPtEtaPhiE gen_ll_p4;
+        LorentzVectorPtEtaPhiE gen_jj_p4;
+        LorentzVectorPtEtaPhiE gen_lljj_p4;
         int illmet; // index in the HH::DileptonMet collection
         int ijj; // index in the HH::Dijet collection
         float DPhi_jj_met;
