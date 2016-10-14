@@ -34,6 +34,8 @@ namespace HH {
         bool id_M; // Medium
         bool id_T; // Tight
         bool id_HWW; // HWW-like id
+        bool passLep1PtCut;
+        bool passLep2PtCut;
         bool iso_L; // Loose
         bool iso_T; // Tight
         bool iso_HWW;
@@ -140,6 +142,7 @@ namespace HH {
         bool btag_L;
         bool btag_M;
         bool btag_T;
+        bool passPtCut;
         float CSV;
         float JP;
         float minDR_jet_selLeptons;
